@@ -1,0 +1,7 @@
+server.py
+collector.py
+telemetry_storage
+requirements.txt
+*.db
+__pycache__
+*.pyc
