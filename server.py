@@ -230,4 +230,6 @@ def get_driver(user_id: str, db: Session = Depends(get_db)):
     
     return {"user_id": driver.user_id, "iracing_id": driver.iracing_customer_id, "api_token": driver.api_token}
 
-if __name__ == "__main__": uvicorn.run(app, host="127.0.0.1", port=8000)
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
