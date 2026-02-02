@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+*.db
+
+# Node.js
+node_modules/
+.next/
+out/
+build/
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Clerk & API Keys
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+telemetry_storage/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
