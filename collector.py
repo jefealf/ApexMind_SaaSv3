@@ -6,7 +6,7 @@ import os
 import requests
 from datetime import datetime
 
-API_URL = "http://127.0.0.1:8000/upload/lap"
+API_URL = "https://apexmind-saasv3.onrender.com/upload/lap"
 API_TOKEN = os.getenv('API_TOKEN', 'YOUR_TOKEN_HERE')
 
 class ApexMindRecorder:

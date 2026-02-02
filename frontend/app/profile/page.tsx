@@ -18,7 +18,8 @@ export default function ProfilePage() {
         async function fetchProfile() {
             try {
                 // Fetch or create profile on backend
-                const res = await axios.get(`http://127.0.0.1:8000/driver/${user.id}`);
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+                const res = await axios.get(`${apiUrl}/driver/${user.id}`);
                 setIracingId(res.data.iracing_id || "");
                 setApiToken(res.data.api_token || "");
             } catch (err) {
@@ -34,7 +35,8 @@ export default function ProfilePage() {
         if (!user) return;
         setSaving(true);
         try {
-            const res = await axios.post("http://127.0.0.1:8000/driver/link", {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+            const res = await axios.post(`${apiUrl}/driver/link`, {
                 user_id: user.id,
                 iracing_id: iracingId
             });
