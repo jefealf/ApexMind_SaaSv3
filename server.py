@@ -44,6 +44,9 @@ class DriverDB(Base):
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="ApexMind API", version="2.0.0 (Robust)")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "ApexMind API is running 🚀"}
 if not os.path.exists('telemetry_storage'): os.makedirs('telemetry_storage')
 
 def get_db():
