@@ -38,7 +38,8 @@ function LinkDeviceContent() {
 
                 await axios.post(`${apiUrl}/devices/link`, {
                     user_id: user.id,
-                    device_id: deviceId
+                    device_id: deviceId,
+                    display_name: user.fullName || user.firstName || "Racer"
                 });
 
                 setStatus("success");
