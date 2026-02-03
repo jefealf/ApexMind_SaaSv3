@@ -16,25 +16,39 @@ export default function ProfilePage() {
     const [stats, setStats] = useState({ irating: 0, sr: 0.0, license: "-" });
     const [showModal, setShowModal] = useState(false);
 
+    const [backendStatus, setBackendStatus] = useState<"ok" | "error" | "checking">("checking");
+
     useEffect(() => {
         if (!user) return;
+
         async function fetchProfile() {
-            if (!user) return;
+            setLoading(true);
             try {
-                // Fetch or create profile on backend
-                // Uses Next.js Rewrite Proxy to avoid CORS/Mixed Content
-                const res = await axios.get(`/api/py/driver/${user.id}`);
+                // 1. Health Check (Fast fail)
+                try {
+                    await axios.get("/api/py/", { timeout: 3000 });
+                    setBackendStatus("ok");
+                } catch (e) {
+                    console.warn("Backend Health Check Failed", e);
+                    setBackendStatus("error");
+                    throw new Error("Backend Unreachable");
+                }
+
+                // 2. Fetch Profile
+                const res = await axios.get(`/api/py/driver/${user.id}`, { timeout: 5000 });
                 setIracingId(res.data.iracing_id || "");
                 setApiToken(res.data.api_token || "");
                 if (res.data.stats) setStats(res.data.stats);
             } catch (err) {
-                console.error(err);
+                console.error("Profile Fetch Error:", err);
+                setMsg("Error connecting to backend server.");
             } finally {
                 setLoading(false);
             }
         }
-        fetchProfile();
-    }, [user]);
+
+        if (isLoaded && user) fetchProfile();
+    }, [user, isLoaded]);
 
     // Used by Modal success
     const handleSyncSuccess = (data: any) => {
@@ -46,6 +60,24 @@ export default function ProfilePage() {
     };
 
     if (!isLoaded || loading) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center text-cyan-500"><Loader2 className="animate-spin" /></div>;
+
+    // BACKEND ERROR STATE
+    if (backendStatus === "error") return (
+        <div className="min-h-screen bg-[#0b0f19] flex flex-col items-center justify-center text-white p-6 text-center">
+            <h1 className="text-3xl font-bold text-red-500 mb-4">Backend Connection Failed</h1>
+            <p className="max-w-md text-slate-400 mb-6">The application frontend is working, but it cannot reach the Python Backend server.</p>
+            <div className="bg-[#1e293b] p-4 rounded text-left text-xs font-mono border border-red-900/50">
+                <p className="text-yellow-400 mb-2">Troubleshooting Steps:</p>
+                <ol className="list-decimal pl-4 space-y-2 text-slate-300">
+                    <li>Check if the Render Web Service is <strong>Active</strong>.</li>
+                    <li>Ensure Render "Root Directory" is set to <code>backend</code>.</li>
+                    <li>Verify the Start Command is <code>uvicorn server:app --host 0.0.0.0 --port $PORT</code>.</li>
+                </ol>
+            </div>
+            <button onClick={() => window.location.reload()} className="mt-8 bg-cyan-600 px-6 py-2 rounded font-bold hover:bg-cyan-500">Retry Connection</button>
+        </div>
+    );
+
     if (!user) return <div className="text-white p-10">Please sign in.</div>;
 
     return (
