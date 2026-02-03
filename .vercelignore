@@ -1,7 +1,13 @@
-server.py
-collector.py
-telemetry_storage
-requirements.txt
-*.db
-__pycache__
+# Ignore Backend & Python artifacts
+backend/
+scripts/
+telemetry_storage/
+laps_data/
+venv/
+*.py
 *.pyc
+requirements.txt
+__pycache__
+apexmind.db
+.env
+.venv
