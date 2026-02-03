@@ -159,6 +159,11 @@ def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
 def link_device_token_safe(data: DeviceLinkRequest, db: Session = Depends(get_db)):
     return link_device_token(data, db)
 
+class IRacingAuthRequest(BaseModel):
+    user_id: str
+    username: str
+    password: str
+
 @app.get("/devices/{device_id}")
 def check_device_link(device_id: str, db: Session = Depends(get_db)):
     """Checks if a device ID is linked to a user."""
