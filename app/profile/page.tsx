@@ -1,7 +1,7 @@
 "use client";
 
-import { useUser, SignOutButton } from "@clerk/nextjs";
-import { Loader2, LogOut } from "lucide-react";
+import { useUser, SignOutButton, SignInButton } from "@clerk/nextjs";
+import { Loader2, LogOut, UserCircle } from "lucide-react";
 import Image from "next/image";
 
 export default function ProfilePage() {
@@ -9,12 +9,36 @@ export default function ProfilePage() {
     const { user, isLoaded } = useUser();
     console.log("User User Hook:", { user: !!user, isLoaded });
 
-    if (!isLoaded) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center"><Loader2 className="animate-spin text-cyan-500" /></div>;
-    if (!user) return <div className="text-white p-10">Please sign in to view your profile.</div>;
+    // 1. Loading State
+    if (!isLoaded) return (
+        <div className="w-full min-h-screen bg-[#0b0f19] flex items-center justify-center z-50 fixed top-0 left-0">
+            <Loader2 className="animate-spin text-cyan-500" size={40} />
+        </div>
+    );
 
+    // 2. Not Signed In State (Fix White Page Issue)
+    if (!user) return (
+        <div className="w-full min-h-screen bg-[#0b0f19] flex flex-col items-center justify-center p-10 z-50 fixed top-0 left-0">
+            <div className="bg-[#1e293b] p-8 rounded-2xl border border-white/10 text-center max-w-md shadow-2xl">
+                <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <UserCircle size={32} className="text-slate-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">Login Required</h2>
+                <p className="text-slate-400 mb-6">You need to sign in to access your profile.</p>
+
+                <SignInButton mode="modal">
+                    <button className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition">
+                        Sign In Now
+                    </button>
+                </SignInButton>
+            </div>
+        </div>
+    );
+
+    // 3. Signed In State
     return (
         <div className="min-h-screen bg-[#0b0f19] text-white p-8">
-            <div className="max-w-4xl mx-auto space-y-8">
+            <div className="max-w-4xl mx-auto space-y-8 mt-20"> {/* Added margin-top to clear header */}
 
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-6">
