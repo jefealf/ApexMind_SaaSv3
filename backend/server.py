@@ -66,7 +66,7 @@ app.add_middleware(
 )
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "ApexMind API is running 🚀"}
+    return {"status": "online", "message": "ApexMind API v2.1 is running 🚀", "version": "2.1"}
 if not os.path.exists('telemetry_storage'): os.makedirs('telemetry_storage')
 
 def get_db():
