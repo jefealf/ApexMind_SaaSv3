@@ -24,8 +24,7 @@ export default function IracingConnectModal({ userId, onSuccess, onClose }: Irac
         setError("");
 
         try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-            const res = await axios.post(`${apiUrl}/driver/sync_iracing`, {
+            const res = await axios.post(`/api/py/driver/sync_iracing`, {
                 user_id: userId,
                 username: email,
                 password: password

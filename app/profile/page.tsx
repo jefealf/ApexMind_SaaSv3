@@ -22,8 +22,8 @@ export default function ProfilePage() {
             if (!user) return;
             try {
                 // Fetch or create profile on backend
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-                const res = await axios.get(`${apiUrl}/driver/${user.id}`);
+                // Uses Next.js Rewrite Proxy to avoid CORS/Mixed Content
+                const res = await axios.get(`/api/py/driver/${user.id}`);
                 setIracingId(res.data.iracing_id || "");
                 setApiToken(res.data.api_token || "");
                 if (res.data.stats) setStats(res.data.stats);
