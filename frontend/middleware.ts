@@ -5,7 +5,8 @@ export default authMiddleware({
         "/",
         "/sign-in(.*)",
         "/sign-up(.*)",
-        "/api/webhooks(.*)"
+        "/api/webhooks(.*)",
+        "/frontend/(.*)" // Allow Vercel rewritten paths
     ],
     ignoredRoutes: [
         "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
