@@ -56,7 +56,14 @@ except ImportError:
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="ApexMind API", version="2.0.0 (Robust)")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Keep * for development/generic access if needed, or restrict to specific domains
+    allow_origin_regex=r"https://apexmindsaasv3.*\.vercel\.app", # Allow Vercel Preview/Production URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "ApexMind API is running 🚀"}
