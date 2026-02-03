@@ -39,7 +39,20 @@ class DriverDB(Base):
     user_id = Column(String, unique=True, index=True) # Clerk ID
     iracing_customer_id = Column(String, nullable=True)
     api_token = Column(String, unique=True, index=True) # Token for Collector
+    
+    # New Stats Columns
+    irating = Column(Integer, default=0)
+    safety_rating = Column(Float, default=0.0)
+    license_class = Column(String, default="R")
+    cpi = Column(Float, default=0.0)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# Import API Client
+try:
+    from backend.iracing_api import IRacingAPI
+except ImportError:
+    from iracing_api import IRacingAPI
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="ApexMind API", version="2.0.0 (Robust)")
@@ -233,7 +246,57 @@ def get_driver(user_id: str, db: Session = Depends(get_db)):
         driver = DriverDB(user_id=user_id, iracing_customer_id="", api_token=token)
         db.add(driver); db.commit(); db.refresh(driver)
     
-    return {"user_id": driver.user_id, "iracing_id": driver.iracing_customer_id, "api_token": driver.api_token}
+    return {"user_id": driver.user_id, "iracing_id": driver.iracing_customer_id, "api_token": driver.api_token, 
+            "stats": {"irating": driver.irating, "sr": driver.safety_rating, "license": driver.license_class}}
+
+class IRacingAuthRequest(BaseModel):
+    user_id: str
+    username: str
+    password: str
+
+@app.post("/driver/sync_iracing")
+def sync_iracing_data(data: IRacingAuthRequest, db: Session = Depends(get_db)):
+    # 1. Login to iRacing
+    api = IRacingAPI()
+    success, msg = api.login(data.username, data.password)
+    
+    if not success:
+        raise HTTPException(status_code=401, detail=msg)
+    
+    # 2. Fetch Data
+    info = api.get_member_info()
+    if not info:
+        raise HTTPException(status_code=500, detail="Failed to fetch member info")
+        
+    # Extract Stats (Assuming Road license for now as primary, or get highest)
+    # iRacing info structure varies, we look for 'licenses'
+    licenses = info.get('licenses', [])
+    road_license = next((l for l in licenses if l['category_name'] == "Sports Car"), None)
+    
+    if not road_license:
+        # Fallback to first available
+        road_license = licenses[0] if licenses else {}
+
+    irating = road_license.get('irating', 0)
+    sr = road_license.get('safety_rating', 0.0)
+    lic_group = road_license.get('group_name', 'R')
+    cust_id = info.get('cust_id', 0)
+
+    # 3. Update DB
+    driver = db.query(DriverDB).filter(DriverDB.user_id == data.user_id).first()
+    if not driver:
+         driver = DriverDB(user_id=data.user_id, iracing_customer_id=str(cust_id), api_token=str(uuid.uuid4()))
+         db.add(driver)
+    
+    driver.iracing_customer_id = str(cust_id)
+    driver.irating = irating
+    driver.safety_rating = sr
+    driver.license_class = lic_group
+    
+    db.commit()
+    db.refresh(driver)
+    
+    return {"status": "synced", "stats": {"irating": irating, "sr": sr, "license": lic_group}}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
