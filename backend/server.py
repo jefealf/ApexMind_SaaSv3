@@ -244,6 +244,25 @@ def link_driver(data: DriverLinkRequest, db: Session = Depends(get_db)):
     db.refresh(driver)
     return {"status": "linked", "api_token": driver.api_token, "iracing_id": driver.iracing_customer_id}
 
+class DeviceLinkRequest(BaseModel):
+    user_id: str
+    device_id: str
+
+@app.post("/driver/link_device")
+def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
+    """Links a local agent device_id to the user's account."""
+    driver = db.query(DriverDB).filter(DriverDB.user_id == data.user_id).first()
+    if not driver:
+        # Create new profile if not exists
+        driver = DriverDB(user_id=data.user_id, api_token=data.device_id, iracing_customer_id="")
+        db.add(driver)
+    else:
+        # Update device token
+        driver.api_token = data.device_id
+    
+    db.commit()
+    return {"status": "linked", "device_id": data.device_id}
+
 @app.get("/driver/{user_id}")
 def get_driver(user_id: str, db: Session = Depends(get_db)):
     driver = db.query(DriverDB).filter(DriverDB.user_id == user_id).first()
@@ -256,10 +275,25 @@ def get_driver(user_id: str, db: Session = Depends(get_db)):
     return {"user_id": driver.user_id, "iracing_id": driver.iracing_customer_id, "api_token": driver.api_token, 
             "stats": {"irating": driver.irating, "sr": driver.safety_rating, "license": driver.license_class}}
 
-class IRacingAuthRequest(BaseModel):
-    user_id: str
-    username: str
-    password: str
+class CareerStatsUpdate(BaseModel):
+    device_id: str
+    irating: int
+    license_class: str
+    safety_rating: float
+
+@app.post("/telemetry/career")
+def update_career_stats(data: CareerStatsUpdate, db: Session = Depends(get_db)):
+    """Receives career stats from the local agent (via device_id)."""
+    driver = db.query(DriverDB).filter(DriverDB.api_token == data.device_id).first()
+    if not driver:
+        raise HTTPException(404, "Device not linked or User not found")
+    
+    driver.irating = data.irating
+    driver.license_class = data.license_class
+    driver.safety_rating = data.safety_rating
+    
+    db.commit()
+    return {"status": "updated", "new_irating": driver.irating}
 
 @app.post("/driver/sync_iracing")
 def sync_iracing_data(data: IRacingAuthRequest, db: Session = Depends(get_db)):
