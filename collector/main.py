@@ -114,8 +114,8 @@ def check_link_status():
                 data = resp.json()
                 is_linked = data.get("linked", False)
                 if is_linked:
-                    # If username not returned, use ID or placeholder
-                    linked_username = data.get("user_id", "Connected User")
+                    # Get Real Name (display_name) or Fallback
+                    linked_username = data.get("display_name") or data.get("user_id", "Connected User")
             
             # Update GUI if open
             if status_window:
