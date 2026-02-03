@@ -185,37 +185,37 @@ export default function Home() {
                     <NavItem icon={<Users size={20} />} label="Comunidade" />
                 </nav>
 
-                <div className="mt-auto px-4 w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
-                    {/* STATUS DO AGENTE (CONDICIONAL) */}
+                <div className="mt-auto px-4 w-full">
+                    {/* STATUS DO AGENTE (CONDICIONAL) - VISÍVEL SEMPRE */}
                     {!isConnected ? (
-                        <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-500/20 p-4 rounded-xl relative overflow-hidden group/card cursor-pointer hover:border-cyan-500/40 transition-all">
+                        <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-500/20 p-4 rounded-xl relative overflow-hidden group/card cursor-pointer hover:border-cyan-500/40 transition-all mb-4">
                             <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
-                            <h4 className="font-bold text-white text-sm mb-1">Conectar iRacing</h4>
-                            <p className="text-xs text-slate-400 mb-3 leading-relaxed">Baixe o agente para sincronizar telemetria.</p>
-                            <a href="/download/ApexMindConnector.exe" download className="flex items-center justify-center gap-2 w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg text-xs font-bold transition-transform active:scale-95 shadow-lg shadow-cyan-900/20">
-                                <Download size={14} /> Baixar Agente
+                            {/* Ícone visível quando colapsado */}
+                            <div className="flex items-center justify-center lg:justify-start gap-3">
+                                <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-400 shrink-0">
+                                    <Download size={20} />
+                                </div>
+                                <div className="hidden xl:block lg:group-hover:block transition-all">
+                                    <h4 className="font-bold text-white text-sm leading-tight">Baixar Agente</h4>
+                                    <p className="text-[10px] text-slate-400 leading-tight">Sincronizar telemetria</p>
+                                </div>
+                            </div>
+
+                            <a href="/download/ApexMindConnector.exe" download className="mt-3 flex items-center justify-center gap-2 w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg text-xs font-bold transition-transform active:scale-95 shadow-lg shadow-cyan-900/20 hidden xl:flex lg:group-hover:flex">
+                                Download .exe
                             </a>
                         </div>
                     ) : (
-                        <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-center gap-3">
-                            <div className="p-2 bg-green-500/20 rounded-lg text-green-400">
+                        <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-green-500/20 rounded-lg text-green-400 shrink-0">
                                 <CheckCircle size={20} />
                             </div>
-                            <div>
+                            <div className="hidden xl:block lg:group-hover:block transition-all">
                                 <p className="text-sm font-bold text-white leading-none mb-1">Agente Ativo</p>
-                                <p className="text-xs text-green-400">Sincronização em tempo real</p>
+                                <p className="text-xs text-green-400">Online</p>
                             </div>
                         </div>
                     )}
-
-                    <div className="bg-[#151b28] border border-slate-800 rounded-xl p-4 mt-4">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Status do Sistema</h4>
-                        <div className="space-y-2">
-                            <StatusItem label="Collector App" status={isConnected ? "online" : "offline"} />
-                            <StatusItem label="Database" status="online" />
-                            <StatusItem label="Cloud API" status="online" />
-                        </div>
-                    </div>
                 </div>
             </aside>
 
@@ -254,6 +254,31 @@ export default function Home() {
                         </div>
                     </div>
                 </header>
+
+                {/* CONNECTION ALERT BANNER */}
+                {!isConnected && (
+                    <div className="mb-8 bg-gradient-to-r from-cyan-900/50 to-blue-900/50 border border-cyan-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-lg shadow-cyan-900/20">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-cyan-500/20 rounded-xl text-cyan-400 shadow-inner">
+                                <Zap size={32} />
+                            </div>
+                            <div>
+                                <h2 className="text-xl font-bold text-white mb-1">Conecte seu Simulador</h2>
+                                <p className="text-slate-300 text-sm max-w-xl">
+                                    Para ver seus dados em tempo real, você precisa baixar e executar nosso Agente de Coleta no PC onde o iRacing está instalado.
+                                </p>
+                            </div>
+                        </div>
+                        <a
+                            href="/download/ApexMindConnector.exe"
+                            download
+                            className="whitespace-nowrap flex items-center gap-3 px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-cyan-500/25"
+                        >
+                            <Download size={20} />
+                            Baixar Agente (Windows)
+                        </a>
+                    </div>
+                )}
 
                 {/* KPI GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
