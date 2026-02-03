@@ -72,8 +72,8 @@ export default function Home() {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
             const res = await axios.get(`${apiUrl}/driver/${user.id}`);
 
-            // Se tiver token de API, está conectado!
-            if (res.data.api_token) {
+            // Só considera conectado se tiver Token E ID do iRacing vinculado
+            if (res.data.api_token && res.data.iracing_id) {
                 setIsConnected(true);
             }
 
