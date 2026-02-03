@@ -6,7 +6,7 @@ import axios from "axios";
 import {
     Trophy, MapPin, Car, Activity, Zap, Lock, Settings, Users,
     ChevronRight, Trash2, Clock, Cloud, Thermometer, Wrench, Download,
-    Flag, TrendingUp, TrendingDown, Shield, User
+    Flag, TrendingUp, TrendingDown, Shield, User, CheckCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -60,6 +60,9 @@ export default function Home() {
 
     // Dados da categoria atual
     const currentCareer = CAREER_DATA[selectedCategory];
+
+    // Verifica se está conectado baseado nos dados (Se license for "-", considera desconectado)
+    const isConnected = currentCareer.license !== "-";
 
     useEffect(() => {
         if (isLoaded && !isSignedIn) {
@@ -325,14 +328,24 @@ export default function Home() {
 
                     {/* SIDEBAR: UPSELL & STATUS */}
                     <div className="space-y-6">
-                        <div className="bg-gradient-to-br from-purple-900/40 to-slate-900 p-6 rounded-2xl border border-purple-500/20 text-center relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-3 opacity-20"><Zap size={80} /></div>
-                            <h3 className="text-lg font-bold text-white mb-2 relative z-10">ApexMind <span className="text-purple-400">Pro</span></h3>
-                            <p className="text-xs text-slate-400 mb-4 relative z-10">Conecte sua conta iRacing para sincronizar iRating e stats em tempo real.</p>
-                            <button className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold rounded-lg transition-colors relative z-10 flex items-center justify-center gap-2">
-                                <Lock size={12} /> Conectar Conta
-                            </button>
-                        </div>
+                        {!isConnected ? (
+                            <div className="bg-gradient-to-br from-cyan-900/40 to-slate-900 p-6 rounded-2xl border border-cyan-500/20 text-center relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-3 opacity-20"><Zap size={80} /></div>
+                                <h3 className="text-lg font-bold text-white mb-2 relative z-10">Conectar iRacing</h3>
+                                <p className="text-xs text-slate-400 mb-4 relative z-10">Baixe o agente para sincronizar seus dados com segurança.</p>
+                                <button className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-lg transition-colors relative z-10 flex items-center justify-center gap-2">
+                                    <Download size={14} /> Baixar Agente
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="bg-green-500/10 p-4 rounded-xl border border-green-500/20 flex items-center gap-3">
+                                <div className="p-2 bg-green-500/20 rounded-lg text-green-400"><CheckCircle size={20} /></div>
+                                <div>
+                                    <p className="text-sm font-bold text-white">Agente Ativo</p>
+                                    <p className="text-xs text-green-400">Sincronização em tempo real</p>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="p-4 rounded-2xl bg-[#151b28] border border-slate-800">
                             <h3 className="text-xs font-bold uppercase text-slate-500 mb-3">Status do Sistema</h3>
