@@ -1,12 +1,17 @@
-# Ignore Backend & Python artifacts
+# Ignore Backend Code (Hosted on Render)
 backend/
 scripts/
-laps_data/
+collector.py
+requirements.txt
 venv/
 *.py
 *.pyc
-requirements.txt
-__pycache__
-apexmind.db
+__pycache__/
+
+# Ignore Local Data
+laps_data/
 .env
-.venv
+.env.local
+
+# Ignore Git
+.git/
