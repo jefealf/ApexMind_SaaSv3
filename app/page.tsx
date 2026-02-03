@@ -34,7 +34,9 @@ export default function LandingPage() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <Link href="/dashboard" className="text-sm font-medium text-slate-400 hover:text-white transition">Login</Link>
+                    <SignInButton mode="modal">
+                        <button className="text-sm font-medium text-slate-400 hover:text-white transition">Login</button>
+                    </SignInButton>
                     <SignInButton mode="modal">
                         <button className="bg-white text-black hover:bg-slate-200 px-5 py-2 rounded-full text-sm font-bold transition">
                             Get Started
