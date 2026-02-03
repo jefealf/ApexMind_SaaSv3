@@ -339,7 +339,7 @@ export default function Home() {
                         <div>
                             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">EQUIPE</p>
                             <h3 className="text-xl font-bold text-slate-300 mb-1">Apex Racing</h3>
-                            <p className="text-xs text-slate-600">Feature "Team Share" em breve</p>
+                            <p className="text-xs text-slate-600">Feature &quot;Team Share&quot; em breve</p>
                         </div>
                     </div>
 
