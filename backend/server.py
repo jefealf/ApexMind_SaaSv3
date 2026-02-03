@@ -287,6 +287,14 @@ def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
 def link_device_token_safe(data: DeviceLinkRequest, db: Session = Depends(get_db)):
     return link_device_token(data, db)
 
+@app.get("/devices/{device_id}")
+def check_device_link(device_id: str, db: Session = Depends(get_db)):
+    """Checks if a device ID is linked to a user."""
+    driver = db.query(DriverDB).filter(DriverDB.api_token == device_id).first()
+    if driver:
+        return {"linked": True, "user_id": driver.user_id, "iracing_id": driver.iracing_customer_id}
+    return {"linked": False, "user_id": None}
+
 @app.get("/driver/{user_id}")
 def get_driver(user_id: str, db: Session = Depends(get_db)):
     driver = db.query(DriverDB).filter(DriverDB.user_id == user_id).first()
