@@ -3,15 +3,13 @@
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { User, Shield, Key, Save, Copy, Loader2 } from "lucide-react";
+import { User, Shield, Key, Save, Copy, Loader2, CheckCircle } from "lucide-react";
+import IracingConnectModal from "@/components/IracingConnectModal";
 
 export default function ProfilePage() {
     const { user, isLoaded } = useUser();
-    const [iracingId, setIracingId] = useState("");
-    const [apiToken, setApiToken] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState("");
+    const [stats, setStats] = useState({ irating: 0, sr: 0.0, license: "-" });
+    const [showModal, setShowModal] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -23,6 +21,7 @@ export default function ProfilePage() {
                 const res = await axios.get(`${apiUrl}/driver/${user.id}`);
                 setIracingId(res.data.iracing_id || "");
                 setApiToken(res.data.api_token || "");
+                if (res.data.stats) setStats(res.data.stats);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -32,30 +31,22 @@ export default function ProfilePage() {
         fetchProfile();
     }, [user]);
 
-    async function handleSave() {
-        if (!user) return;
-        setSaving(true);
-        try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-            const res = await axios.post(`${apiUrl}/driver/link`, {
-                user_id: user.id,
-                iracing_id: iracingId
-            });
-            setApiToken(res.data.api_token);
-            setMsg("Profile updated successfully!");
-            setTimeout(() => setMsg(""), 3000);
-        } catch (err) {
-            setMsg("Error saving profile.");
-        } finally {
-            setSaving(false);
-        }
-    }
+    // Used by Modal success
+    const handleSyncSuccess = (data: any) => {
+        setIracingId(data.iracing_id);
+        setStats(data.stats);
+        setShowModal(false);
+        setMsg("Account linked and synced successfully!");
+        setTimeout(() => setMsg(""), 4000);
+    };
 
     if (!isLoaded || loading) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center text-cyan-500"><Loader2 className="animate-spin" /></div>;
     if (!user) return <div className="text-white p-10">Please sign in.</div>;
 
     return (
         <div className="min-h-screen bg-[#0b0f19] text-white p-8 max-w-4xl mx-auto">
+            {showModal && <IracingConnectModal userId={user.id} onSuccess={handleSyncSuccess} onClose={() => setShowModal(false)} />}
+
             <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
                 <User className="text-cyan-500" /> Driver Profile
             </h1>
@@ -73,28 +64,29 @@ export default function ProfilePage() {
 
                     <div className="space-y-4">
                         <div className="p-4 bg-slate-800/50 rounded-lg">
-                            <label className="text-xs uppercase text-slate-500 font-bold block mb-1">iRacing Customer ID</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={iracingId}
-                                    onChange={(e) => setIracingId(e.target.value)}
-                                    placeholder="Example: 123456"
-                                    className="flex-1 bg-slate-900 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-cyan-500 transition-colors"
-                                />
-                                <button
-                                    onClick={handleSave}
-                                    disabled={saving}
-                                    className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded flex items-center gap-2 font-bold transition-all disabled:opacity-50"
-                                >
-                                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                    {saving ? "Saving" : "Save"}
-                                </button>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-2">Required to fetch your iRating, Safety Rating, and Licenses.</p>
+                            <label className="text-xs uppercase text-slate-500 font-bold block mb-1">iRacing Account</label>
+
+                            {iracingId ? (
+                                <div className="flex items-center justify-between text-green-400 bg-green-900/20 px-3 py-2 rounded border border-green-800/50">
+                                    <span className="flex items-center gap-2 text-sm font-bold">
+                                        <CheckCircle size={14} /> ID: {iracingId}
+                                    </span>
+                                    <button onClick={() => setShowModal(true)} className="text-[10px] uppercase text-slate-400 hover:text-white underline">Resync</button>
+                                </div>
+                            ) : (
+                                <div className="text-center py-2">
+                                    <button
+                                        onClick={() => setShowModal(true)}
+                                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold py-2 rounded flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <Shield size={16} /> Link iRacing Account
+                                    </button>
+                                    <p className="text-[10px] text-slate-500 mt-2">Sign in with iRacing credentials to generate your API Token.</p>
+                                </div>
+                            )}
                         </div>
 
-                        {msg && <div className={`text-xs font-bold ${msg.includes("Error") ? "text-red-400" : "text-green-400"}`}>{msg}</div>}
+                        {msg && <div className={`text-xs font-bold text-center ${msg.includes("Error") ? "text-red-400" : "text-green-400"}`}>{msg}</div>}
                     </div>
                 </div>
 
@@ -109,7 +101,7 @@ export default function ProfilePage() {
                         </p>
 
                         <div className="bg-black/40 p-3 rounded-lg border border-slate-700 font-mono text-xs break-all relative group">
-                            <span className="text-yellow-400">{apiToken || "Generating..."}</span>
+                            <span className="text-yellow-400">{apiToken || "Link account to generate..."}</span>
                             <button
                                 onClick={() => { navigator.clipboard.writeText(apiToken); setMsg("Token copied!") }}
                                 className="absolute top-2 right-2 p-1 bg-slate-700 rounded hover:bg-slate-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -124,20 +116,24 @@ export default function ProfilePage() {
                             <Shield className="text-green-500" size={20} /> iRacing Stats
                         </h3>
                         <div className="grid grid-cols-3 gap-2 text-center">
-                            <div className="bg-slate-800 p-2 rounded">
-                                <div className="text-[10px] uppercase text-slate-500">iRating</div>
-                                <div className="font-mono font-bold text-white">-</div>
+                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div className="text-[10px] uppercase text-slate-500 font-bold">iRating</div>
+                                <div className="font-mono text-xl font-bold text-white">{stats.irating > 0 ? stats.irating : "-"}</div>
                             </div>
-                            <div className="bg-slate-800 p-2 rounded">
-                                <div className="text-[10px] uppercase text-slate-500">License</div>
-                                <div className="font-mono font-bold text-white">-</div>
+                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div className="text-[10px] uppercase text-slate-500 font-bold">License</div>
+                                <div className={`font-mono text-xl font-bold ${stats.license.startsWith("A") ? "text-green-500" : (stats.license.startsWith("B") ? "text-yellow-500" : "text-white")}`}>
+                                    {stats.license}
+                                </div>
                             </div>
-                            <div className="bg-slate-800 p-2 rounded">
-                                <div className="text-[10px] uppercase text-slate-500">Safety</div>
-                                <div className="font-mono font-bold text-white">-</div>
+                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
+                                <div className="text-[10px] uppercase text-slate-500 font-bold">Safety</div>
+                                <div className="font-mono text-xl font-bold text-white">{stats.sr > 0 ? stats.sr.toFixed(2) : "-"}</div>
                             </div>
                         </div>
-                        <p className="text-[10px] text-slate-600 mt-2 text-center">Stats will update after linking account.</p>
+                        <p className="text-[10px] text-slate-600 mt-2 text-center">
+                            {iracingId ? "Synced with iRacing Live Data" : "Link account to view stats"}
+                        </p>
                     </div>
 
                     <div className="mt-6 text-right">
