@@ -142,8 +142,8 @@ export default function Home() {
                                     key={cat.id}
                                     onClick={() => setSelectedCategory(cat.id as CategoryKey)}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat.id
-                                            ? "bg-cyan-600 text-white shadow-lg shadow-cyan-500/20"
-                                            : "text-slate-400 hover:text-white hover:bg-slate-800"
+                                        ? "bg-cyan-600 text-white shadow-lg shadow-cyan-500/20"
+                                        : "text-slate-400 hover:text-white hover:bg-slate-800"
                                         }`}
                                 >
                                     <cat.icon size={14} />
@@ -227,7 +227,7 @@ export default function Home() {
                         <div className="absolute top-3 right-3"><Lock size={12} className="text-slate-600" /></div>
                         <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Equipe</p>
                         <p className="text-xl font-bold text-slate-400">Apex Racing</p>
-                        <p className="text-xs text-slate-600 mt-1">Feature "Team Share" em breve</p>
+                        <p className="text-xs text-slate-600 mt-1">Feature &quot;Team Share&quot; em breve</p>
                     </div>
 
                     <div className="bg-[#151b28] border border-slate-800 p-5 rounded-2xl relative overflow-hidden opacity-60">

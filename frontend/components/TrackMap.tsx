@@ -15,12 +15,12 @@ const StaticMapLayer = memo(({ pointsBase, segments, strokeWidthMultiplier, colo
       )}
       {/* Heatmap da Volta Atual */}
       {segments.map((seg: any, i: number) => (
-        <line 
-          key={i} 
-          x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2} 
-          stroke={getSegmentColor(seg.value, seg.min, seg.max)} 
-          strokeWidth={3 * strokeWidthMultiplier} 
-          strokeLinecap="round" 
+        <line
+          key={i}
+          x1={seg.x1} y1={seg.y1} x2={seg.x2} y2={seg.y2}
+          stroke={getSegmentColor(seg.value, seg.min, seg.max)}
+          strokeWidth={3 * strokeWidthMultiplier}
+          strokeLinecap="round"
         />
       ))}
     </>
@@ -30,43 +30,60 @@ StaticMapLayer.displayName = "StaticMapLayer";
 
 // --- COMPONENTE PRINCIPAL ---
 export default function TrackMap({ map_x_target, map_y_target, map_x_base, map_y_base, highlightIndex, dataChannel = [], colorMode = "speed", zoom = false }: any) {
-  
-  if (!map_x_target || !map_y_target || map_x_target.length === 0) return <div className="text-slate-500 text-xs text-center p-10">NO MAP DATA</div>;
 
-  const { pointsBase, segments, getCoord, viewBoxStatic } = useMemo(() => {
+  const { pointsBase, segments, getCoord, viewBoxStatic, hasData } = useMemo(() => {
+    // 1. Validate Data inside hook (Safe Return)
+    if (!map_x_target || !map_y_target || map_x_target.length === 0) {
+      return {
+        pointsBase: "",
+        segments: [],
+        getCoord: (x: number, y: number) => ({ x: 0, y: 0 }),
+        viewBoxStatic: "0 0 1000 1000",
+        hasData: false
+      };
+    }
+
+    // 2. Main Logic
     const refX = (map_x_base && map_x_base.length) ? map_x_base : map_x_target;
     const refY = (map_y_base && map_y_base.length) ? map_y_base : map_y_target;
-    
+
+    // Bounding Box
     const minX = Math.min(...refX), maxX = Math.max(...refX);
     const minY = Math.min(...refY), maxY = Math.max(...refY);
     const padding = Math.max(maxX - minX, maxY - minY) * 0.05;
-    
+
     const rangeX = (maxX - minX) + (padding * 2) || 1;
     const rangeY = (maxY - minY) + (padding * 2) || 1;
     const originX = minX - padding, originY = minY - padding;
 
+    // Normalize Function (Scoped inside useMemo)
     const normalize = (x: number, y: number) => ({ x: ((x - originX) / rangeX) * 1000, y: 1000 - ((y - originY) / rangeY) * 1000 });
 
+    // Segments Generation
     const segs = [];
     const minVal = dataChannel.length ? Math.min(...dataChannel) : 0;
     const maxVal = dataChannel.length ? Math.max(...dataChannel) : 100;
 
     for (let i = 0; i < map_x_target.length - 1; i++) {
-        const p1 = normalize(map_x_target[i], map_y_target[i]);
-        const p2 = normalize(map_x_target[i+1], map_y_target[i+1]);
-        segs.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, value: dataChannel[i] || 0, min: minVal, max: maxVal });
+      const p1 = normalize(map_x_target[i], map_y_target[i]);
+      const p2 = normalize(map_x_target[i + 1], map_y_target[i + 1]);
+      segs.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, value: dataChannel[i] || 0, min: minVal, max: maxVal });
     }
 
+    // Base Track
     let ptsBase = "";
-    if (map_x_base) ptsBase = map_x_base.map((_:any, i:number) => { const c = normalize(map_x_base[i], map_y_base[i]); return `${c.x},${c.y}`; }).join(" ");
+    if (map_x_base) ptsBase = map_x_base.map((_: any, i: number) => { const c = normalize(map_x_base[i], map_y_base[i]); return `${c.x},${c.y}`; }).join(" ");
 
-    return { pointsBase: ptsBase, segments: segs, getCoord: normalize, viewBoxStatic: "0 0 1000 1000" };
+    return { pointsBase: ptsBase, segments: segs, getCoord: normalize, viewBoxStatic: "0 0 1000 1000", hasData: true };
   }, [map_x_target, map_y_target, map_x_base, map_y_base, dataChannel]);
+
+  // 3. Conditional Render AFTER Hooks
+  if (!hasData) return <div className="text-slate-500 text-xs text-center p-10">NO MAP DATA</div>;
 
   const getSegmentColor = (val: number, min: number, max: number) => {
     if (colorMode === "none") return "#facc15";
     let pct = (val - min) / (max - min || 1);
-    if (colorMode === "brake") return val < 1 ? "#3b82f6" : `rgb(255, ${Math.floor(255*(1-pct))}, ${Math.floor(255*(1-pct))})`;
+    if (colorMode === "brake") return val < 1 ? "#3b82f6" : `rgb(255, ${Math.floor(255 * (1 - pct))}, ${Math.floor(255 * (1 - pct))})`;
     if (colorMode === "speed") return `hsl(${240 - (pct * 240)}, 100%, 50%)`;
     return "#facc15";
   };
@@ -77,12 +94,12 @@ export default function TrackMap({ map_x_target, map_y_target, map_x_base, map_y
   let cursor = null;
 
   if (highlightIndex !== null && highlightIndex < map_x_target.length) {
-     cursor = getCoord(map_x_target[highlightIndex], map_y_target[highlightIndex]);
-     if (zoom) {
-         const z = 40; const w = 1000/z; const h = 1000/z;
-         finalViewBox = `${cursor.x - w/2} ${cursor.y - h/2} ${w} ${h}`;
-         multiplier = 0.1;
-     }
+    cursor = getCoord(map_x_target[highlightIndex], map_y_target[highlightIndex]);
+    if (zoom) {
+      const z = 40; const w = 1000 / z; const h = 1000 / z;
+      finalViewBox = `${cursor.x - w / 2} ${cursor.y - h / 2} ${w} ${h}`;
+      multiplier = 0.1;
+    }
   }
 
   return (
