@@ -10,8 +10,28 @@ import {
     Flag, TrendingUp, TrendingDown, Shield, User
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Lap {
+    // ...
+}
+
+// ...
+
+export default function Home() {
+    const { user, isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
+
+    useEffect(() => {
+        if (isLoaded && !isSignedIn) {
+            router.push("/");
+        }
+    }, [isLoaded, isSignedIn, router]);
+
+    // Show nothing while checking auth to prevent flashing content
+    if (!isLoaded || !isSignedIn) {
+        return null;
+    }
     id: number;
     session_id: string;
     lap_number: number;
