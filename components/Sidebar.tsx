@@ -12,7 +12,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const menuItems = [
-    { icon: Home, label: "Home", href: "/" },
+    { icon: Home, label: "Home", href: "/dashboard" },
     { icon: Activity, label: "Análise", href: "/analysis/latest" }, // Exemplo de link direto
     { icon: Users, label: "Equipe", href: "/team", locked: true },
     { icon: ShoppingBag, label: "Setups", href: "/shop", locked: true },
