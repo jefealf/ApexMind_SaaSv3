@@ -59,8 +59,14 @@ class InstallerGUI:
         self.progress['value'] = value
         self.root.update_idletasks()
 
+import pythoncom
+
+# ... (rest of imports)
+
     def run_installation(self):
         try:
+            pythoncom.CoInitialize() # Initialize COM for this thread
+            
             self.update_status("Creating directories...", 10)
             time.sleep(0.5)
             if not os.path.exists(TARGET_DIR):
@@ -84,10 +90,13 @@ class InstallerGUI:
             
             # Launch and Exit
             os.startfile(TARGET_EXE)
+            
+            pythoncom.CoUninitialize() # Cleanup
             self.root.quit()
             
         except Exception as e:
             messagebox.showerror("Installation Failed", str(e))
+            pythoncom.CoUninitialize()
             self.root.quit()
 
     def create_shortcut(self, name, folder):
