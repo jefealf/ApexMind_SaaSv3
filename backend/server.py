@@ -244,6 +244,11 @@ def link_driver(data: DriverLinkRequest, db: Session = Depends(get_db)):
     db.refresh(driver)
     return {"status": "linked", "api_token": driver.api_token, "iracing_id": driver.iracing_customer_id}
 
+class IRacingAuthRequest(BaseModel):
+    user_id: str
+    username: str
+    password: str
+
 class DeviceLinkRequest(BaseModel):
     user_id: str
     device_id: str
