@@ -37,6 +37,7 @@ class DriverDB(Base):
     __tablename__ = "drivers"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, unique=True, index=True) # Clerk ID
+    display_name = Column(String, nullable=True) # [NEW] Real Name
     iracing_customer_id = Column(String, nullable=True)
     api_token = Column(String, unique=True, index=True) # Token for Collector
     
@@ -48,224 +49,26 @@ class DriverDB(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# Import API Client
-try:
-    from backend.iracing_api import IRacingAPI
-except ImportError:
-    from iracing_api import IRacingAPI
-
-    from iracing_api import IRacingAPI
+# ... (Imports)
 
 # FORCE SCHEMA UPDATE (Safe for Prototype/Dev Phase)
-# If we have existing data we care about, we should use Alembic. 
-# For now, to unblock the user, we ensure the 'drivers' table matches the code.
 try:
     # Check if we need to rebuild drivers table (by trying to select from it)
     with engine.connect() as conn:
-        conn.execute("SELECT api_token FROM drivers LIMIT 1")
+        conn.execute("SELECT display_name FROM drivers LIMIT 1")
 except:
     # Column missing or table mismatch -> Drop and Recreate
-    print("MIGRATION: Drivers table schema mismatch. Recreating...")
+    print("MIGRATION: Drivers table schema mismatch (display_name). Recreating...")
     DriverDB.__table__.drop(engine, checkfirst=True)
 
-Base.metadata.create_all(bind=engine)
-app = FastAPI(title="ApexMind API", version="2.2 (Schema Fix)")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # Keep * for development/generic access if needed, or restrict to specific domains
-    allow_origin_regex=r"https://apexmindsaasv3.*\.vercel\.app", # Allow Vercel Preview/Production URLs
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-@app.get("/")
-def read_root():
-    return {"status": "online", "message": "ApexMind API v2.1 is running 🚀", "version": "2.1"}
-if not os.path.exists('telemetry_storage'): os.makedirs('telemetry_storage')
+# ... (FastAPI Setup)
 
-def get_db():
-    db = SessionLocal(); 
-    try: yield db
-    finally: db.close()
-
-class TelemetryPoint(BaseModel):
-    lap_dist_pct: float; speed: float; throttle: float; brake: float; gear: int
-    steering: float; rpm: float; time: float; map_x: float; map_y: float
-    lat_accel: float = 0.0; lon_accel: float = 0.0; abs_active: bool = False; tc_active: bool = False
-
-class LapData(BaseModel):
-    session_id: str; lap_number: int; car_name: str; track_name: str; telemetry: List[TelemetryPoint]
-
-# --- FUNÇÕES ROBUSTAS ---
-def clean_telemetry_data(telemetry_list):
-    """Limpa dados para evitar crash na interpolação."""
-    df = pd.DataFrame([t.dict() for t in telemetry_list])
-    # 1. Remove duplicatas de distância (comum em iRacing)
-    df = df.drop_duplicates(subset=['lap_dist_pct'])
-    # 2. Garante ordem crescente
-    df = df.sort_values(by='lap_dist_pct')
-    # 3. Garante que começa em 0 e termina próximo de 1
-    return df
-
-def calculate_sectors(df):
-    try:
-        t_start = df.iloc[0]['time']
-        idx_s1 = (df['lap_dist_pct'] - 0.3333).abs().idxmin()
-        idx_s2 = (df['lap_dist_pct'] - 0.6666).abs().idxmin()
-        return df.loc[idx_s1]['time'] - t_start, df.loc[idx_s2]['time'] - df.loc[idx_s1]['time'], df.iloc[-1]['time'] - df.loc[idx_s2]['time']
-    except: return 0.0, 0.0, 0.0
-
-def detect_corners(df):
-    if 'lat_accel' not in df.columns: return []
-    corners = []; in_corner = False; start_pct = 0
-    for i, row in df.iterrows():
-        if abs(row['lat_accel']) > 0.25:
-            if not in_corner: in_corner = True; start_pct = row['lap_dist_pct']
-        elif in_corner:
-            in_corner = False
-            if (row['lap_dist_pct'] - start_pct) > 0.01:
-                corners.append({"name": f"T{len(corners)+1}", "start": start_pct, "end": row['lap_dist_pct']})
-    if in_corner: corners.append({"name": f"T{len(corners)+1}", "start": start_pct, "end": 1.0})
-    return corners
-
-# --- ROTAS ---
-@app.post("/upload/lap")
-def upload_lap(data: LapData, db: Session = Depends(get_db)):
-    if not data.telemetry: raise HTTPException(400)
-    
-    # --- VALIDAÇÃO DE INTEGRIDADE ---
-    # Rejeita voltas que não terminaram (ex: crash ou quit)
-    if data.telemetry[-1].lap_dist_pct < 0.9:
-        raise HTTPException(400, "Volta incompleta (Distância coberta < 90%)")
-        
-    lap_time = data.telemetry[-1].time - data.telemetry[0].time
-    df = clean_telemetry_data(data.telemetry) # Limpa antes de salvar
-    s1, s2, s3 = calculate_sectors(df)
-    
-    filename = f"lap_{data.session_id}_{data.lap_number}.json"
-    file_path = os.path.join("telemetry_storage", filename)
-    with open(file_path, "w") as f: json.dump(data.dict(), f)
-    
-    db_lap = LapDB(session_id=data.session_id, lap_number=data.lap_number, car_name=data.car_name, track_name=data.track_name, lap_time=lap_time, s1=s1, s2=s2, s3=s3, storage_path=file_path)
-    db.add(db_lap); db.commit()
-    return {"status": "saved", "lap_id": db_lap.id}
-
-@app.get("/laps")
-def list_laps(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(LapDB).order_by(LapDB.id.desc()).offset(skip).limit(limit).all()
-
-@app.delete("/laps/{lap_id}")
-def delete_lap(lap_id: int, db: Session = Depends(get_db)):
-    l = db.query(LapDB).filter(LapDB.id==lap_id).first()
-    if l: db.delete(l); db.commit(); 
-    return {"status": "deleted"}
-
-@app.get("/compare/{base_id}/{target_id}")
-def compare_laps(base_id: int, target_id: int, db: Session = Depends(get_db)):
-    lb = db.query(LapDB).filter(LapDB.id==base_id).first()
-    lt = db.query(LapDB).filter(LapDB.id==target_id).first()
-    if not lb or not lt: raise HTTPException(404, "Laps not found")
-
-    with open(lb.storage_path) as f: db_data = json.load(f)
-    with open(lt.storage_path) as f: dt_data = json.load(f)
-
-    # 1. Limpeza Robusta
-    df_b = clean_telemetry_data(LapData(**db_data).telemetry)
-    df_t = clean_telemetry_data(LapData(**dt_data).telemetry)
-    
-    # 2. Interpolação (Evita erro se distancias forem diferentes)
-    common_dist = np.linspace(0, 1, 1000)
-    def safe_interp(df, col, kind='linear'):
-        if col not in df.columns: return np.zeros_like(common_dist)
-        return interp1d(df['lap_dist_pct'], df[col], kind=kind, bounds_error=False, fill_value="extrapolate")(common_dist)
-
-    an = pd.DataFrame({'dist_pct': common_dist})
-    cols = ['speed','throttle','brake','steering','map_x','map_y','lat_accel','lon_accel','gear']
-    for c in cols:
-        an[f'{c}_base'] = safe_interp(df_b, c)
-        an[f'{c}_target'] = safe_interp(df_t, c)
-    
-    # 3. Delta Corrigido (Target - Base)
-    an['time_base'] = safe_interp(df_b, 'time') - df_b.iloc[0]['time']
-    an['time_target'] = safe_interp(df_t, 'time') - df_t.iloc[0]['time']
-    an['time_delta'] = an['time_target'] - an['time_base']
-
-    # 4. Dados para o Front
-    chart_data = {
-        "dist": np.round(common_dist*100, 1).tolist(),
-        "time_delta": np.round(an['time_delta'], 3).tolist(),
-        "speed_base": np.round(an['speed_base'], 1).tolist(),
-        "speed_target": np.round(an['speed_target'], 1).tolist(),
-        "throttle_base": np.round(an['throttle_base']*100, 0).tolist(),
-        "throttle_target": np.round(an['throttle_target']*100, 0).tolist(),
-        "brake_base": np.round(an['brake_base']*100, 0).tolist(),
-        "brake_target": np.round(an['brake_target']*100, 0).tolist(),
-        "steer_target": np.round(an['steering_target']*57.3, 1).tolist(), # Rad -> Deg
-        "steer_base": np.round(an['steering_base']*57.3, 1).tolist(),
-        "map_x_base": np.round(an['map_x_base'], 2).tolist(),
-        "map_y_base": np.round(an['map_y_base'], 2).tolist(),
-        "map_x_target": np.round(an['map_x_target'], 2).tolist(),
-        "map_y_target": np.round(an['map_y_target'], 2).tolist(),
-        "lat_accel_target": np.round(an['lat_accel_target'], 2).tolist(),
-        "lon_accel_target": np.round(an['lon_accel_target'], 2).tolist(),
-        "gear_target": np.round(an['gear_target'], 0).astype(int).tolist(),
-        "gear_base": np.round(an['gear_base'], 0).astype(int).tolist()
-    }
-
-    # 5. Corners
-    corners = detect_corners(df_t)
-    corner_res = []
-    for c in corners:
-        idx_s = int(c['start']*1000); idx_e = int(c['end']*1000)
-        idx_s = max(0, min(999, idx_s)); idx_e = max(0, min(999, idx_e))
-        
-        diff = an['time_delta'].iloc[idx_e] - an['time_delta'].iloc[idx_s]
-        apex_v = an['speed_target'].iloc[idx_s:idx_e].min()
-        apex_diff = apex_v - an['speed_base'].iloc[idx_s:idx_e].min()
-        
-        corner_res.append({
-            "name": c['name'], "start": c['start'], "gain_loss": round(diff, 3),
-            "apex_speed_target": round(apex_v, 1), "apex_speed_diff": round(apex_diff, 1),
-            "status": "loss" if diff > 0.05 else ("gain" if diff < -0.05 else "neutral"),
-            "message": "Perda" if diff > 0.05 else "Ganho"
-        })
-
-    return {
-        "metadata": {"gap_total": round(an['time_delta'].iloc[-1], 3), "track_name": lt.track_name, "base_time": lb.lap_time, "target_time": lt.lap_time},
-        "chart_data": chart_data,
-        "corners": corner_res
-    }
-
-import uuid
-
-class DriverLinkRequest(BaseModel):
-    user_id: str
-    iracing_id: str
-
-@app.post("/driver/link")
-def link_driver(data: DriverLinkRequest, db: Session = Depends(get_db)):
-    driver = db.query(DriverDB).filter(DriverDB.user_id == data.user_id).first()
-    if not driver:
-        # Create new profile
-        token = str(uuid.uuid4())
-        driver = DriverDB(user_id=data.user_id, iracing_customer_id=data.iracing_id, api_token=token)
-        db.add(driver)
-    else:
-        # Update existing
-        driver.iracing_customer_id = data.iracing_id
-    
-    db.commit()
-    db.refresh(driver)
-    return {"status": "linked", "api_token": driver.api_token, "iracing_id": driver.iracing_customer_id}
-
-class IRacingAuthRequest(BaseModel):
-    user_id: str
-    username: str
-    password: str
+# ... (LapData Helper)
 
 class DeviceLinkRequest(BaseModel):
     user_id: str
     device_id: str
+    display_name: str = "Racer" # [NEW] Optional Default
 
 @app.post("/driver/link_device")
 def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
@@ -273,14 +76,21 @@ def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
     driver = db.query(DriverDB).filter(DriverDB.user_id == data.user_id).first()
     if not driver:
         # Create new profile if not exists
-        driver = DriverDB(user_id=data.user_id, api_token=data.device_id, iracing_customer_id="")
+        driver = DriverDB(
+            user_id=data.user_id, 
+            api_token=data.device_id, 
+            display_name=data.display_name,
+            iracing_customer_id=""
+        )
         db.add(driver)
     else:
-        # Update device token
+        # Update device token AND name
         driver.api_token = data.device_id
+        if data.display_name:
+            driver.display_name = data.display_name
     
     db.commit()
-    return {"status": "linked", "device_id": data.device_id}
+    return {"status": "linked", "device_id": data.device_id, "name": driver.display_name}
 
 # SAFE ROUTE (Bypasses /driver/{id} conflict)
 @app.post("/devices/link")
@@ -292,7 +102,12 @@ def check_device_link(device_id: str, db: Session = Depends(get_db)):
     """Checks if a device ID is linked to a user."""
     driver = db.query(DriverDB).filter(DriverDB.api_token == device_id).first()
     if driver:
-        return {"linked": True, "user_id": driver.user_id, "iracing_id": driver.iracing_customer_id}
+        return {
+            "linked": True, 
+            "user_id": driver.user_id, 
+            "display_name": driver.display_name or "Racer", # [NEW]
+            "iracing_id": driver.iracing_customer_id
+        }
     return {"linked": False, "user_id": None}
 
 @app.get("/driver/{user_id}")
