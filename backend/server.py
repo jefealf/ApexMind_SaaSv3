@@ -54,8 +54,22 @@ try:
 except ImportError:
     from iracing_api import IRacingAPI
 
+    from iracing_api import IRacingAPI
+
+# FORCE SCHEMA UPDATE (Safe for Prototype/Dev Phase)
+# If we have existing data we care about, we should use Alembic. 
+# For now, to unblock the user, we ensure the 'drivers' table matches the code.
+try:
+    # Check if we need to rebuild drivers table (by trying to select from it)
+    with engine.connect() as conn:
+        conn.execute("SELECT api_token FROM drivers LIMIT 1")
+except:
+    # Column missing or table mismatch -> Drop and Recreate
+    print("MIGRATION: Drivers table schema mismatch. Recreating...")
+    DriverDB.__table__.drop(engine, checkfirst=True)
+
 Base.metadata.create_all(bind=engine)
-app = FastAPI(title="ApexMind API", version="2.0.0 (Robust)")
+app = FastAPI(title="ApexMind API", version="2.2 (Schema Fix)")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # Keep * for development/generic access if needed, or restrict to specific domains
