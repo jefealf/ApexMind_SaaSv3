@@ -1,7 +1,6 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-
 import { useEffect, useState } from "react";
 import axios from "axios";
 import {
@@ -13,25 +12,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface Lap {
-    // ...
-}
-
-// ...
-
-export default function Home() {
-    const { user, isLoaded, isSignedIn } = useUser();
-    const router = useRouter();
-
-    useEffect(() => {
-        if (isLoaded && !isSignedIn) {
-            router.push("/");
-        }
-    }, [isLoaded, isSignedIn, router]);
-
-    // Show nothing while checking auth to prevent flashing content
-    if (!isLoaded || !isSignedIn) {
-        return null;
-    }
     id: number;
     session_id: string;
     lap_number: number;
@@ -68,6 +48,9 @@ const CAREER_DATA = {
 type CategoryKey = keyof typeof CAREER_DATA;
 
 export default function Home() {
+    const { user, isLoaded, isSignedIn } = useUser();
+    const router = useRouter();
+
     const [laps, setLaps] = useState<Lap[]>([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ totalLaps: 0, bestTrack: "-", bestCar: "-" });
@@ -77,6 +60,12 @@ export default function Home() {
 
     // Dados da categoria atual
     const currentCareer = CAREER_DATA[selectedCategory];
+
+    useEffect(() => {
+        if (isLoaded && !isSignedIn) {
+            router.push("/");
+        }
+    }, [isLoaded, isSignedIn, router]);
 
     const fetchLaps = () => {
         setLoading(true);
@@ -97,6 +86,7 @@ export default function Home() {
     const calculateStats = (data: Lap[]) => {
         if (data.length === 0) return;
         const tracks = data.map(l => l.track_name);
+        // Sort tracks by frequency to find the "best" (most driven) track
         const bestTrack = tracks.sort((a, b) => tracks.filter(v => v === a).length - tracks.filter(v => v === b).length).pop();
         setStats({
             totalLaps: data.length,
@@ -123,9 +113,10 @@ export default function Home() {
         return `${min}:${sec.padStart(6, "0")}`;
     };
 
-    const { user } = useUser();
-
-    // ... (keep fetchLaps and calculateStats)
+    // Show nothing while checking auth to prevent flashing content
+    if (!isLoaded || !isSignedIn) {
+        return null;
+    }
 
     return (
         <div className="min-h-screen bg-[#0b0f19] text-white font-sans selection:bg-cyan-500/30">
