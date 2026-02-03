@@ -108,7 +108,7 @@ export default function Home() {
         } catch (error) { alert("Erro ao deletar."); }
     };
 
-    useEffect(() => { fetchLaps(); }, []);
+    useEffect(() => { fetchLaps(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const formatTime = (seconds: number) => {
         const min = Math.floor(seconds / 60);

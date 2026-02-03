@@ -20,7 +20,7 @@ function LinkDeviceContent() {
 
         if (!isSignedIn) {
             // Se não estiver logado, redireciona para login e volta aqui depois
-            redirectToSignIn({ returnBackUrl: window.location.href });
+            redirectToSignIn({ redirectUrl: window.location.href });
             return;
         }
 
