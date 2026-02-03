@@ -49,7 +49,11 @@ class DriverDB(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# ... (Imports)
+# Import API Client
+try:
+    from backend.iracing_api import IRacingAPI
+except ImportError:
+    from iracing_api import IRacingAPI
 
 # FORCE SCHEMA UPDATE (Safe for Prototype/Dev Phase)
 try:
@@ -61,9 +65,67 @@ except:
     print("MIGRATION: Drivers table schema mismatch (display_name). Recreating...")
     DriverDB.__table__.drop(engine, checkfirst=True)
 
-# ... (FastAPI Setup)
+Base.metadata.create_all(bind=engine)
+app = FastAPI(title="ApexMind API", version="2.5 (Fix)")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_origin_regex=r"https://apexmindsaasv3.*\.vercel\.app", 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# ... (LapData Helper)
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "ApexMind API v2.5 is running 🚀", "version": "2.5"}
+
+if not os.path.exists('telemetry_storage'): os.makedirs('telemetry_storage')
+
+def get_db():
+    db = SessionLocal(); 
+    try: yield db
+    finally: db.close()
+
+class TelemetryPoint(BaseModel):
+    lap_dist_pct: float; speed: float; throttle: float; brake: float; gear: int
+    steering: float; rpm: float; time: float; map_x: float; map_y: float
+    lat_accel: float = 0.0; lon_accel: float = 0.0; abs_active: bool = False; tc_active: bool = False
+
+class LapData(BaseModel):
+    session_id: str; lap_number: int; car_name: str; track_name: str; telemetry: List[TelemetryPoint]
+
+# --- FUNÇÕES ROBUSTAS ---
+def clean_telemetry_data(telemetry_list):
+    """Limpa dados para evitar crash na interpolação."""
+    df = pd.DataFrame([t.dict() for t in telemetry_list])
+    # 1. Remove duplicatas de distância (comum em iRacing)
+    df = df.drop_duplicates(subset=['lap_dist_pct'])
+    # 2. Garante ordem crescente
+    df = df.sort_values(by='lap_dist_pct')
+    # 3. Garante que começa em 0 e termina próximo de 1
+    return df
+
+def calculate_sectors(df):
+    try:
+        t_start = df.iloc[0]['time']
+        idx_s1 = (df['lap_dist_pct'] - 0.3333).abs().idxmin()
+        idx_s2 = (df['lap_dist_pct'] - 0.6666).abs().idxmin()
+        return df.loc[idx_s1]['time'] - t_start, df.loc[idx_s2]['time'] - df.loc[idx_s1]['time'], df.iloc[-1]['time'] - df.loc[idx_s2]['time']
+    except: return 0.0, 0.0, 0.0
+
+def detect_corners(df):
+    if 'lat_accel' not in df.columns: return []
+    corners = []; in_corner = False; start_pct = 0
+    for i, row in df.iterrows():
+        if abs(row['lat_accel']) > 0.25:
+            if not in_corner: in_corner = True; start_pct = row['lap_dist_pct']
+        elif in_corner:
+            in_corner = False
+            if (row['lap_dist_pct'] - start_pct) > 0.01:
+                corners.append({"name": f"T{len(corners)+1}", "start": start_pct, "end": row['lap_dist_pct']})
+    if in_corner: corners.append({"name": f"T{len(corners)+1}", "start": start_pct, "end": 1.0})
+    return corners
 
 class DeviceLinkRequest(BaseModel):
     user_id: str
