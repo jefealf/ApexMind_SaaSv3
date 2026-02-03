@@ -22,6 +22,7 @@ export default function ProfilePage() {
         if (!user) return;
 
         async function fetchProfile() {
+            if (!user) return;
             setLoading(true);
             try {
                 // 1. Health Check (Fast fail)
