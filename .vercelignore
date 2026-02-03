@@ -1,7 +1,6 @@
 # Ignore Backend & Python artifacts
 backend/
 scripts/
-telemetry_storage/
 laps_data/
 venv/
 *.py

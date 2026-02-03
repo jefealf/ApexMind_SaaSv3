@@ -1,7 +1,0 @@
-../server.py
-../collector.py
-../telemetry_storage
-../requirements.txt
-../env
-../.env
-../*.db
