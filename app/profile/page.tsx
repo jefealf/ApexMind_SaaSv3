@@ -188,7 +188,6 @@ export default function ProfilePage() {
             </div>
 
             <IracingConnectModal
-                isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 onSuccess={handleSyncSuccess}
                 userId={user.id}
