@@ -8,6 +8,11 @@ import IracingConnectModal from "@/components/IracingConnectModal";
 
 export default function ProfilePage() {
     const { user, isLoaded } = useUser();
+    const [iracingId, setIracingId] = useState("");
+    const [apiToken, setApiToken] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [msg, setMsg] = useState("");
     const [stats, setStats] = useState({ irating: 0, sr: 0.0, license: "-" });
     const [showModal, setShowModal] = useState(false);
 
