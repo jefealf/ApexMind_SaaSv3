@@ -1,18 +1,22 @@
-import { authMiddleware } from "@clerk/nextjs";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export default authMiddleware({
-    publicRoutes: [
-        "/",
-        "/sign-in(.*)",
-        "/sign-up(.*)",
-        "/api/webhooks(.*)",
-        "/frontend/(.*)" // Allow Vercel rewritten paths
-    ],
-    ignoredRoutes: [
-        "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
-    ]
+// Clerk v5 Middleware
+// Define protected routes explicitly.
+// By default, clerkMiddleware does not protect any routes.
+// We use the route matcher to enforce auth on specific paths.
+
+const isProtectedRoute = createRouteMatcher([
+    "/dashboard(.*)",
+    "/analysis(.*)",
+    "/api/protected(.*)"
+]);
+
+export default clerkMiddleware((auth, req) => {
+    if (isProtectedRoute(req)) {
+        auth().protect();
+    }
 });
 
 export const config = {
-    matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+    matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
 };
