@@ -24,7 +24,7 @@ function LinkDeviceContent() {
             return;
         }
 
-        const deviceId = searchParams.get("device_id");
+        const deviceId = searchParams.get("deviceId") || searchParams.get("device_id");
         if (!deviceId) {
             setStatus("error");
             setMessage("ID do dispositivo não encontrado na URL.");
