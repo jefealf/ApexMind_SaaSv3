@@ -1,19 +1,20 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { authMiddleware } from "@clerk/nextjs";
 
-const isProtectedRoute = createRouteMatcher([
-    '/analysis(.*)',
-    '/dashboard(.*)'
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-    if (isProtectedRoute(req)) {
-        const { userId, redirectToSignIn } = await auth();
-        if (!userId) {
-            return redirectToSignIn();
-        }
-    }
+// Clerk v4 Middleware
+// Protects all routes by default.
+// Explicitly listing public routes.
+export default authMiddleware({
+    publicRoutes: [
+        "/",
+        "/sign-in(.*)",
+        "/sign-up(.*)",
+        "/api/webhooks(.*)" // Often needed for webhooks
+    ],
+    ignoredRoutes: [
+        "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)", // Ignore static files
+    ]
 });
 
 export const config = {
-    matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+    matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
 };
