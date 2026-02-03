@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { User, Shield, Key, Copy, Loader2, CheckCircle, Trophy, LogOut, RefreshCw, AlertTriangle } from "lucide-react";
 import IracingConnectModal from "@/components/IracingConnectModal";
+import Image from "next/image";
 
 export default function ProfilePage() {
     const { user, isLoaded } = useUser();
@@ -20,6 +21,7 @@ export default function ProfilePage() {
         if (!user) return;
 
         async function init() {
+            if (!user) return;
             try {
                 // Try to get driver data
                 const res = await axios.get(`/api/py/driver/${user.id}`, { timeout: 5000 });
@@ -75,7 +77,13 @@ export default function ProfilePage() {
                     <div className="md:col-span-1 bg-[#1e293b] rounded-xl p-6 border border-white/10 h-fit">
                         <div className="flex flex-col items-center text-center">
                             <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-cyan-500/30">
-                                <img src={user.imageUrl} alt={user.fullName || "User"} className="w-full h-full object-cover" />
+                                <Image
+                                    src={user.imageUrl}
+                                    alt={user.fullName || "User"}
+                                    width={96}
+                                    height={96}
+                                    className="w-full h-full object-cover"
+                                />
                             </div>
                             <h2 className="text-xl font-bold">{user.fullName}</h2>
                             <p className="text-sm text-slate-400 break-all">{user.primaryEmailAddress?.emailAddress}</p>
