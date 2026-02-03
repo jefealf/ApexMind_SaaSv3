@@ -115,8 +115,18 @@ def setup_app():
 
     except Exception as e:
         logging.critical(f"FATAL ERROR: {e}", exc_info=True)
+        print(f"FATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...") # Keep window open
         # Try to show error if possible, otherwise it's just in the log
         # if 'installer' in sys.modules: ...
 
 if __name__ == "__main__":
-    setup_app()
+    try:
+        setup_app()
+    except Exception as e:
+        print(f"CRITICAL SETUP ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")
