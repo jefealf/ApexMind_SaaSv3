@@ -70,7 +70,7 @@ export default function ProfilePage() {
                 <p className="text-yellow-400 mb-2">Troubleshooting Steps:</p>
                 <ol className="list-decimal pl-4 space-y-2 text-slate-300">
                     <li>Check if the Render Web Service is <strong>Active</strong>.</li>
-                    <li>Ensure Render "Root Directory" is set to <code>backend</code>.</li>
+                    <li>Ensure Render &quot;Root Directory&quot; is set to <code>backend</code>.</li>
                     <li>Verify the Start Command is <code>uvicorn server:app --host 0.0.0.0 --port $PORT</code>.</li>
                 </ol>
             </div>
