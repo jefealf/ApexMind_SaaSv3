@@ -263,6 +263,11 @@ def link_device_token(data: DeviceLinkRequest, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "linked", "device_id": data.device_id}
 
+# SAFE ROUTE (Bypasses /driver/{id} conflict)
+@app.post("/devices/link")
+def link_device_token_safe(data: DeviceLinkRequest, db: Session = Depends(get_db)):
+    return link_device_token(data, db)
+
 @app.get("/driver/{user_id}")
 def get_driver(user_id: str, db: Session = Depends(get_db)):
     driver = db.query(DriverDB).filter(DriverDB.user_id == user_id).first()

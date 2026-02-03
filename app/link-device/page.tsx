@@ -36,7 +36,7 @@ function LinkDeviceContent() {
                 setMessage("Vinculando dispositivo à sua conta...");
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
-                await axios.post(`${apiUrl}/driver/link_device`, {
+                await axios.post(`${apiUrl}/devices/link`, {
                     user_id: user.id,
                     device_id: deviceId
                 });
