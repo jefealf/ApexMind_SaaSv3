@@ -3,184 +3,188 @@
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { User, Shield, Key, Save, Copy, Loader2, CheckCircle } from "lucide-react";
+import { User, Shield, Key, Copy, Loader2, CheckCircle, Trophy, LogOut, RefreshCw, AlertTriangle } from "lucide-react";
 import IracingConnectModal from "@/components/IracingConnectModal";
 
 export default function ProfilePage() {
     const { user, isLoaded } = useUser();
+    const [stats, setStats] = useState({ irating: 0, sr: 0.0, license: "-" });
     const [iracingId, setIracingId] = useState("");
     const [apiToken, setApiToken] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [msg, setMsg] = useState("");
-    const [stats, setStats] = useState({ irating: 0, sr: 0.0, license: "-" });
+    const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null); // null = checking
     const [showModal, setShowModal] = useState(false);
+    const [msg, setMsg] = useState("");
 
-    const [backendStatus, setBackendStatus] = useState<"ok" | "error" | "checking">("checking");
-
+    // Non-blocking data fetch
     useEffect(() => {
         if (!user) return;
 
-        async function fetchProfile() {
-            if (!user) return;
-            setLoading(true);
+        async function init() {
             try {
-                // 1. Health Check (Fast fail)
-                try {
-                    await axios.get("/api/py/", { timeout: 3000 });
-                    setBackendStatus("ok");
-                } catch (e) {
-                    console.warn("Backend Health Check Failed", e);
-                    setBackendStatus("error");
-                    throw new Error("Backend Unreachable");
-                }
-
-                // 2. Fetch Profile
+                // Try to get driver data
                 const res = await axios.get(`/api/py/driver/${user.id}`, { timeout: 5000 });
-                setIracingId(res.data.iracing_id || "");
-                setApiToken(res.data.api_token || "");
-                if (res.data.stats) setStats(res.data.stats);
+                if (res.data) {
+                    setIracingId(res.data.iracing_id || "");
+                    setApiToken(res.data.api_token || "");
+                    if (res.data.stats) setStats(res.data.stats);
+                    setIsBackendConnected(true);
+                }
             } catch (err) {
-                console.error("Profile Fetch Error:", err);
-                setMsg("Error connecting to backend server.");
-            } finally {
-                setLoading(false);
+                console.error("Backend fetch error (non-fatal):", err);
+                setIsBackendConnected(false);
             }
         }
+        init();
+    }, [user]);
 
-        if (isLoaded && user) fetchProfile();
-    }, [user, isLoaded]);
-
-    // Used by Modal success
     const handleSyncSuccess = (data: any) => {
-        setIracingId(data.iracing_id);
         setStats(data.stats);
+        setIracingId(data.cust_id);
         setShowModal(false);
+        setIsBackendConnected(true);
         setMsg("Account linked and synced successfully!");
         setTimeout(() => setMsg(""), 4000);
     };
 
-    if (!isLoaded || loading) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center text-cyan-500"><Loader2 className="animate-spin" /></div>;
-
-    // BACKEND ERROR STATE
-    if (backendStatus === "error") return (
-        <div className="min-h-screen bg-[#0b0f19] flex flex-col items-center justify-center text-white p-6 text-center">
-            <h1 className="text-3xl font-bold text-red-500 mb-4">Backend Connection Failed</h1>
-            <p className="max-w-md text-slate-400 mb-6">The application frontend is working, but it cannot reach the Python Backend server.</p>
-            <div className="bg-[#1e293b] p-4 rounded text-left text-xs font-mono border border-red-900/50">
-                <p className="text-yellow-400 mb-2">Troubleshooting Steps:</p>
-                <ol className="list-decimal pl-4 space-y-2 text-slate-300">
-                    <li>Check if the Render Web Service is <strong>Active</strong>.</li>
-                    <li>Ensure Render &quot;Root Directory&quot; is set to <code>backend</code>.</li>
-                    <li>Verify the Start Command is <code>uvicorn server:app --host 0.0.0.0 --port $PORT</code>.</li>
-                </ol>
-            </div>
-            <button onClick={() => window.location.reload()} className="mt-8 bg-cyan-600 px-6 py-2 rounded font-bold hover:bg-cyan-500">Retry Connection</button>
-        </div>
-    );
-
-    if (!user) return <div className="text-white p-10">Please sign in.</div>;
+    if (!isLoaded) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center"><Loader2 className="animate-spin text-cyan-500" /></div>;
+    if (!user) return <div className="text-white p-10">Please sign in to view your profile.</div>;
 
     return (
-        <div className="min-h-screen bg-[#0b0f19] text-white p-8 max-w-4xl mx-auto">
-            {showModal && <IracingConnectModal userId={user.id} onSuccess={handleSyncSuccess} onClose={() => setShowModal(false)} />}
+        <div className="min-h-screen bg-[#0b0f19] text-white p-8">
+            <div className="max-w-4xl mx-auto space-y-8">
 
-            <h1 className="text-3xl font-bold mb-8 flex items-center gap-3">
-                <User className="text-cyan-500" /> Driver Profile
-            </h1>
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                            My Profile
+                        </h1>
+                        <p className="text-slate-400 mt-1">Manage your account and integrations</p>
+                    </div>
+                    {/* Backend Status Indicator */}
+                    <div className="flex items-center gap-2 text-xs font-mono bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                        <div className={`w-2 h-2 rounded-full ${isBackendConnected === true ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : isBackendConnected === false ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                        <span className="text-slate-300">
+                            {isBackendConnected === true ? "System Online" : isBackendConnected === false ? "Backend Offline" : "Connecting..."}
+                        </span>
+                    </div>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* LEFT: INFO */}
-                <div className="bg-[#1e293b] p-6 rounded-xl border border-slate-700 shadow-lg">
-                    <div className="flex items-center gap-4 mb-6">
-                        <img src={user.imageUrl} alt="Profile" className="w-16 h-16 rounded-full border-2 border-cyan-500" />
-                        <div>
+                {/* 1. Account Info (Clerk) */}
+                <div className="grid md:grid-cols-3 gap-8">
+                    <div className="md:col-span-1 bg-[#1e293b] rounded-xl p-6 border border-white/10 h-fit">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-24 h-24 rounded-full overflow-hidden mb-4 border-2 border-cyan-500/30">
+                                <img src={user.imageUrl} alt={user.fullName || "User"} className="w-full h-full object-cover" />
+                            </div>
                             <h2 className="text-xl font-bold">{user.fullName}</h2>
-                            <p className="text-slate-400 text-sm">{user.primaryEmailAddress?.emailAddress}</p>
+                            <p className="text-sm text-slate-400 break-all">{user.primaryEmailAddress?.emailAddress}</p>
+                            <div className="mt-4 w-full">
+                                <SignOutButton>
+                                    <button className="w-full flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 py-2 rounded-lg transition text-sm font-medium border border-red-500/20">
+                                        <LogOut size={16} /> Sign Out
+                                    </button>
+                                </SignOutButton>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="p-4 bg-slate-800/50 rounded-lg">
-                            <label className="text-xs uppercase text-slate-500 font-bold block mb-1">iRacing Account</label>
+                    {/* 2. iRacing Integration */}
+                    <div className="md:col-span-2 space-y-6">
+                        {/* Status Card */}
+                        <div className="bg-[#1e293b] rounded-xl p-6 border border-white/10">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-lg font-semibold flex items-center gap-2">
+                                    <Trophy className="text-yellow-500" size={20} />
+                                    iRacing Career Stats
+                                </h3>
+                                {!iracingId && (
+                                    <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded border border-yellow-500/30">
+                                        Not Linked
+                                    </span>
+                                )}
+                            </div>
 
                             {iracingId ? (
-                                <div className="flex items-center justify-between text-green-400 bg-green-900/20 px-3 py-2 rounded border border-green-800/50">
-                                    <span className="flex items-center gap-2 text-sm font-bold">
-                                        <CheckCircle size={14} /> ID: {iracingId}
-                                    </span>
-                                    <button onClick={() => setShowModal(true)} className="text-[10px] uppercase text-slate-400 hover:text-white underline">Resync</button>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="bg-[#0b0f19] p-4 rounded-lg border border-white/5 text-center">
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">iRating</p>
+                                        <p className="text-2xl font-bold text-white">{stats.irating}</p>
+                                    </div>
+                                    <div className="bg-[#0b0f19] p-4 rounded-lg border border-white/5 text-center">
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">Safety Rating</p>
+                                        <p className="text-2xl font-bold text-blue-400">{stats.sr}</p>
+                                    </div>
+                                    <div className="bg-[#0b0f19] p-4 rounded-lg border border-white/5 text-center">
+                                        <p className="text-slate-400 text-xs uppercase tracking-wider mb-1">License</p>
+                                        <p className="text-2xl font-bold text-green-400">{stats.license}</p>
+                                    </div>
+                                    <div className="col-span-3 mt-2 flex justify-end">
+                                        <button
+                                            onClick={() => setShowModal(true)}
+                                            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                                        >
+                                            <RefreshCw size={12} /> Sync Data
+                                        </button>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-2">
+                                <div className="text-center py-8 bg-[#0b0f19]/50 rounded-lg border border-dashed border-white/10">
+                                    <p className="text-slate-400 mb-4 text-sm">Link your iRacing account to track your progress automatically.</p>
                                     <button
                                         onClick={() => setShowModal(true)}
-                                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold py-2 rounded flex items-center justify-center gap-2 transition-all"
+                                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded-lg font-medium transition flex items-center gap-2 mx-auto"
                                     >
-                                        <Shield size={16} /> Link iRacing Account
+                                        Link iRacing Account
                                     </button>
-                                    <p className="text-[10px] text-slate-500 mt-2">Sign in with iRacing credentials to generate your API Token.</p>
                                 </div>
                             )}
                         </div>
 
-                        {msg && <div className={`text-xs font-bold text-center ${msg.includes("Error") ? "text-red-400" : "text-green-400"}`}>{msg}</div>}
-                    </div>
-                </div>
-
-                {/* RIGHT: API KEYS & STATS */}
-                <div className="bg-[#1e293b] p-6 rounded-xl border border-slate-700 shadow-lg flex flex-col justify-between">
-                    <div>
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Key className="text-yellow-500" size={20} /> Collector Configuration
-                        </h3>
-                        <p className="text-sm text-slate-400 mb-4">
-                            Use this token in your Python Collector (`collector.py`) to authenticate your uploads.
-                        </p>
-
-                        <div className="bg-black/40 p-3 rounded-lg border border-slate-700 font-mono text-xs break-all relative group">
-                            <span className="text-yellow-400">{apiToken || "Link account to generate..."}</span>
-                            <button
-                                onClick={() => { navigator.clipboard.writeText(apiToken); setMsg("Token copied!") }}
-                                className="absolute top-2 right-2 p-1 bg-slate-700 rounded hover:bg-slate-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                                <Copy size={12} />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-slate-700">
-                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Shield className="text-green-500" size={20} /> iRacing Stats
-                        </h3>
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                                <div className="text-[10px] uppercase text-slate-500 font-bold">iRating</div>
-                                <div className="font-mono text-xl font-bold text-white">{stats.irating > 0 ? stats.irating : "-"}</div>
-                            </div>
-                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                                <div className="text-[10px] uppercase text-slate-500 font-bold">License</div>
-                                <div className={`font-mono text-xl font-bold ${stats.license.startsWith("A") ? "text-green-500" : (stats.license.startsWith("B") ? "text-yellow-500" : "text-white")}`}>
-                                    {stats.license}
+                        {/* Connection Debugger (Helpful for User) */}
+                        {isBackendConnected === false && (
+                            <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-lg flex items-start gap-3">
+                                <AlertTriangle className="text-red-400 shrink-0" size={20} />
+                                <div>
+                                    <h4 className="text-sm font-bold text-red-400">Connection Issue</h4>
+                                    <p className="text-xs text-red-300/80 mt-1">
+                                        Could not reach the ApexMind server. We are trying to reconnect...
+                                        <br />Check if the Backend Service on Render is active.
+                                    </p>
                                 </div>
                             </div>
-                            <div className="bg-slate-800 p-2 rounded border border-slate-700">
-                                <div className="text-[10px] uppercase text-slate-500 font-bold">Safety</div>
-                                <div className="font-mono text-xl font-bold text-white">{stats.sr > 0 ? stats.sr.toFixed(2) : "-"}</div>
-                            </div>
-                        </div>
-                        <p className="text-[10px] text-slate-600 mt-2 text-center">
-                            {iracingId ? "Synced with iRacing Live Data" : "Link account to view stats"}
-                        </p>
-                    </div>
+                        )}
 
-                    <div className="mt-6 text-right">
-                        <SignOutButton>
-                            <button className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider">Sign Out</button>
-                        </SignOutButton>
+                        {/* API Token Section (Hidden togglable or strict) */}
+                        {apiToken && (
+                            <div className="bg-[#1e293b] p-6 rounded-xl border border-white/10 opacity-60 hover:opacity-100 transition">
+                                <h3 className="text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
+                                    <Key size={14} /> Collector API Token
+                                </h3>
+                                <div className="bg-black/30 p-2 rounded text-xs font-mono break-all text-slate-500 select-all flex justify-between items-center group">
+                                    <span>{apiToken}</span>
+                                    <button
+                                        onClick={() => { navigator.clipboard.writeText(apiToken); setMsg("Token copied!") }}
+                                        className="p-1 bg-slate-700 rounded hover:bg-slate-600 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <Copy size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {msg && <div className={`text-xs font-bold text-center mt-2 ${msg.includes("Error") ? "text-red-400" : "text-green-400"}`}>{msg}</div>}
+
                     </div>
                 </div>
             </div>
+
+            <IracingConnectModal
+                isOpen={showModal}
+                onClose={() => setShowModal(false)}
+                onSuccess={handleSyncSuccess}
+                userId={user.id}
+            />
         </div>
     );
 }
