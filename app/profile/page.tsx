@@ -5,7 +5,9 @@ import { Loader2, LogOut } from "lucide-react";
 import Image from "next/image";
 
 export default function ProfilePage() {
+    console.log("Rendering Profile Page...");
     const { user, isLoaded } = useUser();
+    console.log("User User Hook:", { user: !!user, isLoaded });
 
     if (!isLoaded) return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center"><Loader2 className="animate-spin text-cyan-500" /></div>;
     if (!user) return <div className="text-white p-10">Please sign in to view your profile.</div>;
