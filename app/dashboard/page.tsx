@@ -21,48 +21,43 @@ interface Lap {
     created_at: string;
 }
 
-// MOCK DE DADOS DE CARREIRA (Estrutura pronta para a API Web)
-// Como solicitado, valores padrão são "---" para simular desconexão
-const CAREER_DATA = {
-    formula: {
-        license: "A",
-        sr: "4.99",
-        irating: "2150",
-        ir_gain: "+42",
-        sr_gain: "+0.15",
-        color: "bg-blue-600" // Cor da Licença A
-    },
-    sports_car: {
-        license: "B",
-        sr: "3.45",
-        irating: "1890",
-        ir_gain: "-12",
-        sr_gain: "+0.02",
-        color: "bg-yellow-500" // Cor da Licença B
-    },
-    oval: { license: "-", sr: "---", irating: "---", ir_gain: null, sr_gain: null, color: "bg-slate-600" },
-    dirt_oval: { license: "-", sr: "---", irating: "---", ir_gain: null, sr_gain: null, color: "bg-slate-600" },
-    dirt_road: { license: "-", sr: "---", irating: "---", ir_gain: null, sr_gain: null, color: "bg-slate-600" }
+interface CareerStats {
+    license: string;
+    sr: string;
+    irating: string;
+    ir_gain: string | null;
+    sr_gain: string | null;
+    color: string;
+}
+
+// Valores padrão para quando não houver dados (DESCONECTADO)
+const DEFAULT_CAREER: CareerStats = {
+    license: "-", sr: "---", irating: "---", ir_gain: null, sr_gain: null, color: "bg-slate-800"
 };
 
-type CategoryKey = keyof typeof CAREER_DATA;
+type CategoryKey = "sports_car" | "formula" | "oval" | "dirt_oval";
 
 export default function Home() {
     const { user, isLoaded, isSignedIn } = useUser();
     const router = useRouter();
 
+    // Estados de Dados
     const [laps, setLaps] = useState<Lap[]>([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ totalLaps: 0, bestTrack: "-", bestCar: "-" });
 
-    // ESTADO DO SELETOR DE CATEGORIA
+    // Status do Motorista (Inicia desconectado)
+    const [isConnected, setIsConnected] = useState(false);
+    const [careerData, setCareerData] = useState<Record<string, CareerStats>>({
+        sports_car: { ...DEFAULT_CAREER },
+        formula: { ...DEFAULT_CAREER },
+        oval: { ...DEFAULT_CAREER },
+        dirt_oval: { ...DEFAULT_CAREER }
+    });
+
+    // Estado da UI
     const [selectedCategory, setSelectedCategory] = useState<CategoryKey>("sports_car");
-
-    // Dados da categoria atual
-    const currentCareer = CAREER_DATA[selectedCategory];
-
-    // Verifica se está conectado baseado nos dados (Se license for "-", considera desconectado)
-    const isConnected = currentCareer.license !== "-";
+    const currentCareer = careerData[selectedCategory] || DEFAULT_CAREER;
 
     useEffect(() => {
         if (isLoaded && !isSignedIn) {
@@ -70,8 +65,53 @@ export default function Home() {
         }
     }, [isLoaded, isSignedIn, router]);
 
+    // 1. Buscar Dados do Driver (Status de Conexão + Stats)
+    const fetchDriverData = async () => {
+        if (!user) return;
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+            const res = await axios.get(`${apiUrl}/driver/${user.id}`);
+
+            // Se tiver token de API, está conectado!
+            if (res.data.api_token) {
+                setIsConnected(true);
+            }
+
+            // Atualiza Stats se existirem
+            if (res.data.stats) {
+                const s = res.data.stats;
+                // Atualiza APENAS a categoria sports_car por enquanto (exemplo)
+                if (s.irating && s.irating !== 0) {
+                    setCareerData(prev => ({
+                        ...prev,
+                        sports_car: {
+                            license: s.license || "-",
+                            sr: s.sr ? s.sr.toFixed(2) : "---",
+                            irating: s.irating.toString(),
+                            ir_gain: null,
+                            sr_gain: null,
+                            color: getLicenseColor(s.license)
+                        }
+                    }));
+                }
+            }
+        } catch (error) {
+            console.log("Perfil ainda não existe ou erro de conexão.");
+        }
+    };
+
+    const getLicenseColor = (license: string) => {
+        if (!license) return "bg-slate-800";
+        if (license.includes("A")) return "bg-blue-600";
+        if (license.includes("B")) return "bg-yellow-500";
+        if (license.includes("C")) return "bg-green-600";
+        if (license.includes("D")) return "bg-orange-500";
+        return "bg-slate-800";
+    }
+
+    // 2. Buscar Voltas
     const fetchLaps = () => {
-        setLoading(true);
+        // setLoading(true); // Opcional, para não piscar a tela toda
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
         axios.get(`${apiUrl}/laps?limit=100`)
             .then((response) => {
@@ -89,7 +129,6 @@ export default function Home() {
     const calculateStats = (data: Lap[]) => {
         if (data.length === 0) return;
         const tracks = data.map(l => l.track_name);
-        // Sort tracks by frequency to find the "best" (most driven) track
         const bestTrack = tracks.sort((a, b) => tracks.filter(v => v === a).length - tracks.filter(v => v === b).length).pop();
         setStats({
             totalLaps: data.length,
@@ -108,265 +147,321 @@ export default function Home() {
         } catch (error) { alert("Erro ao deletar."); }
     };
 
-    useEffect(() => { fetchLaps(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Carregar dados ao entrar
+    useEffect(() => {
+        if (user) {
+            fetchDriverData();
+            fetchLaps();
+        }
+    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const formatTime = (seconds: number) => {
         const min = Math.floor(seconds / 60);
         const sec = (seconds % 60).toFixed(3);
-        return `${min}:${sec.padStart(6, "0")}`;
+        return `${min}:${sec.padStart(6, '0')}`;
     };
 
-    // Show nothing while checking auth to prevent flashing content
     if (!isLoaded || !isSignedIn) {
-        return null;
+        return <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center text-white">Carregando...</div>;
     }
 
     return (
-        <div className="min-h-screen bg-[#0b0f19] text-white font-sans selection:bg-cyan-500/30">
+        <div className="flex min-h-screen bg-[#0b0f19] font-sans text-slate-200 selection:bg-cyan-500/30">
+            {/* SIDEBAR - Fixa e Moderna */}
+            <aside className="fixed left-0 top-0 h-screen w-20 hover:w-64 bg-[#0e121e]/80 backdrop-blur-xl border-r border-slate-800/50 flex flex-col items-center py-8 z-50 transition-all duration-300 group overflow-hidden">
+                <div className="mb-12">
+                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                        <Zap size={24} className="text-white fill-white" />
+                    </div>
+                </div>
 
-            {/* BACKGROUND EFFECTS */}
-            <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-cyan-900/10 to-transparent pointer-events-none"></div>
+                <nav className="flex-1 w-full px-4 space-y-2">
+                    <NavItem icon={<Activity size={20} />} label="Dashboard" active />
+                    <NavItem icon={<Trophy size={20} />} label="Campeonatos" />
+                    <NavItem icon={<MapPin size={20} />} label="Pistas" />
+                    <NavItem icon={<Car size={20} />} label="Garagem" />
+                    <div className="h-px bg-slate-800/50 my-4 mx-2" />
+                    <NavItem icon={<Settings size={20} />} label="Configurações" />
+                    <NavItem icon={<Users size={20} />} label="Comunidade" />
+                </nav>
 
-            <main className="max-w-7xl mx-auto px-6 py-8 relative z-10">
-
-                {/* HERO SECTION: DRIVER PROFILE & LICENSE CARD */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-
-                    {/* ESQUERDA: IDENTIDADE DO PILOTO */}
-                    <div className="lg:col-span-2 flex flex-col justify-center">
-                        <div className="flex items-center gap-5 mb-6">
-                            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex items-center justify-center shadow-2xl shadow-black/50">
-                                <User size={32} className="text-slate-400" />
+                <div className="mt-auto px-4 w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
+                    {/* STATUS DO AGENTE (CONDICIONAL) */}
+                    {!isConnected ? (
+                        <div className="bg-gradient-to-br from-cyan-900/40 to-blue-900/40 border border-cyan-500/20 p-4 rounded-xl relative overflow-hidden group/card cursor-pointer hover:border-cyan-500/40 transition-all">
+                            <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                            <h4 className="font-bold text-white text-sm mb-1">Conectar iRacing</h4>
+                            <p className="text-xs text-slate-400 mb-3 leading-relaxed">Baixe o agente para sincronizar telemetria.</p>
+                            <a href="/download/ApexMindConnector.exe" download className="flex items-center justify-center gap-2 w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg text-xs font-bold transition-transform active:scale-95 shadow-lg shadow-cyan-900/20">
+                                <Download size={14} /> Baixar Agente
+                            </a>
+                        </div>
+                    ) : (
+                        <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl flex items-center gap-3">
+                            <div className="p-2 bg-green-500/20 rounded-lg text-green-400">
+                                <CheckCircle size={20} />
                             </div>
                             <div>
-                                <h1 className="text-4xl font-bold text-white tracking-tight">Bem-vindo, {user?.firstName || "Driver"}.</h1>
-                                <div className="flex items-center gap-3 text-sm text-slate-400 mt-1">
-                                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20 font-mono text-xs font-bold">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> ONLINE
-                                    </span>
-                                    <span>•</span>
-                                    <span className="text-slate-500">Membro desde 2025</span>
-                                </div>
+                                <p className="text-sm font-bold text-white leading-none mb-1">Agente Ativo</p>
+                                <p className="text-xs text-green-400">Sincronização em tempo real</p>
                             </div>
                         </div>
+                    )}
 
-                        {/* SELETOR DE CATEGORIA (TABS) */}
-                        <div className="flex gap-2 bg-[#151b28] p-1 rounded-xl border border-slate-800 w-fit">
-                            {[
-                                { id: "sports_car", label: "Sports Car", icon: Car },
-                                { id: "formula", label: "Formula", icon: Trophy },
-                                { id: "oval", label: "Oval", icon: Activity }, // Placeholder icon
-                                { id: "dirt_oval", label: "Dirt", icon: Flag }
-                            ].map((cat) => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => setSelectedCategory(cat.id as CategoryKey)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedCategory === cat.id
-                                        ? "bg-cyan-600 text-white shadow-lg shadow-cyan-500/20"
-                                        : "text-slate-400 hover:text-white hover:bg-slate-800"
-                                        }`}
-                                >
-                                    <cat.icon size={14} />
-                                    {cat.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* DIREITA: CARTÃO DE LICENÇA (DADOS DINÂMICOS) */}
-                    <div className="relative">
-                        {/* Efeito de Glow baseado na cor da licença */}
-                        <div className={`absolute inset-0 ${currentCareer.color} blur-[60px] opacity-20 pointer-events-none rounded-full`}></div>
-
-                        <div className="bg-[#151b28]/80 backdrop-blur-xl border border-slate-700 p-6 rounded-2xl shadow-2xl relative overflow-hidden">
-                            <div className="flex justify-between items-start mb-6">
-                                <div>
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">iRATING</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-4xl font-mono font-bold text-white">{currentCareer.irating}</span>
-                                        {currentCareer.ir_gain && (
-                                            <span className={`text-sm font-bold flex items-center ${currentCareer.ir_gain.includes('+') ? 'text-green-400' : 'text-red-400'}`}>
-                                                {currentCareer.ir_gain.includes('+') ? <TrendingUp size={14} className="mr-1" /> : <TrendingDown size={14} className="mr-1" />}
-                                                {currentCareer.ir_gain}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* BADGE DA LICENÇA */}
-                                <div className={`${currentCareer.color} w-12 h-12 rounded-lg flex items-center justify-center text-xl font-black text-white shadow-lg border border-white/10`}>
-                                    {currentCareer.license}
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {/* Safety Rating Bar */}
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-400 font-bold uppercase">Safety Rating</span>
-                                        <span className="text-white font-mono font-bold">{currentCareer.sr}</span>
-                                    </div>
-                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                                        <div
-                                            className={`h-full ${currentCareer.color} transition-all duration-1000`}
-                                            style={{ width: currentCareer.sr === "---" ? "0%" : `${(parseFloat(currentCareer.sr) / 5) * 100}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Footer do Card */}
-                            <div className="mt-6 pt-4 border-t border-slate-700/50 flex justify-between items-center">
-                                <span className="text-[10px] text-slate-500 uppercase font-bold">Ultima Corrida</span>
-                                <span className="text-xs text-slate-300 flex items-center gap-1">
-                                    {currentCareer.irating === "---" ? "Sem dados recentes" : "2 horas atrás"}
-                                </span>
-                            </div>
+                    <div className="bg-[#151b28] border border-slate-800 rounded-xl p-4 mt-4">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Status do Sistema</h4>
+                        <div className="space-y-2">
+                            <StatusItem label="Collector App" status={isConnected ? "online" : "offline"} />
+                            <StatusItem label="Database" status="online" />
+                            <StatusItem label="Cloud API" status="online" />
                         </div>
                     </div>
                 </div>
+            </aside>
 
-                {/* METRICS GRID (KPIs GERAIS) */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
-                    <div className="bg-[#151b28] border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/30 transition-colors">
-                        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity size={60} /></div>
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Voltas Analisadas</p>
-                        <p className="text-3xl font-bold text-white font-mono">{stats.totalLaps}</p>
-                        <div className="mt-4 h-1 w-full bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 w-[40%]"></div></div>
-                    </div>
-
-                    <div className="bg-[#151b28] border border-slate-800 p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/30 transition-colors">
-                        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><MapPin size={60} /></div>
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pista Favorita</p>
-                        <p className="text-xl font-bold text-white truncate">{stats.bestTrack}</p>
-                        <p className="text-xs text-slate-500 mt-1">Alta consistência detectada</p>
-                    </div>
-
-                    {/* Placeholders Visuais */}
-                    <div className="bg-[#151b28] border border-slate-800 p-5 rounded-2xl relative overflow-hidden opacity-60">
-                        <div className="absolute top-3 right-3"><Lock size={12} className="text-slate-600" /></div>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Equipe</p>
-                        <p className="text-xl font-bold text-slate-400">Apex Racing</p>
-                        <p className="text-xs text-slate-600 mt-1">Feature &quot;Team Share&quot; em breve</p>
-                    </div>
-
-                    <div className="bg-[#151b28] border border-slate-800 p-5 rounded-2xl relative overflow-hidden opacity-60">
-                        <div className="absolute top-3 right-3"><Lock size={12} className="text-slate-600" /></div>
-                        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Setup Shop</p>
-                        <p className="text-xl font-bold text-slate-400">Locked</p>
-                        <p className="text-xs text-slate-600 mt-1">Acesso a setups Pro</p>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-
-                    {/* LISTA DE SESSÕES */}
-                    <div className="lg:col-span-3">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-bold flex items-center gap-2">
-                                <Clock className="text-cyan-400" size={20} /> Sessões Recentes
-                            </h2>
-                            <button onClick={fetchLaps} className="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
-                                <Zap size={12} /> Atualizar
-                            </button>
+            {/* MAIN CONTENT */}
+            <main className="flex-1 pl-20 ml-0 transition-all duration-300 p-8 lg:p-12 overflow-y-auto">
+                <header className="flex justify-between items-start mb-12">
+                    <div>
+                        <div className="flex items-center gap-4 mb-2">
+                            <h1 className="text-4xl font-black text-white tracking-tight">
+                                Bem-vindo, {user?.firstName || "Piloto"}.
+                            </h1>
+                            <span className="px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> ONLINE
+                            </span>
                         </div>
+                        <p className="text-slate-400 font-medium">Membro desde {user?.createdAt ? new Date(user.createdAt).getFullYear() : "2025"}</p>
+                    </div>
 
-                        {loading ? (
-                            <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-24 bg-[#151b28] rounded-xl animate-pulse border border-slate-800"></div>)}</div>
-                        ) : (
-                            <div className="space-y-3">
-                                {laps.length === 0 ? (
-                                    <div className="text-center py-20 border border-dashed border-slate-800 rounded-2xl">
-                                        <p className="text-slate-500">Nenhuma volta gravada. Abra o iRacing!</p>
-                                    </div>
-                                ) : laps.map((lap) => (
-                                    <Link key={lap.id} href={`/analysis/${lap.id}`}>
-                                        <div className="group bg-[#151b28] border border-slate-800 hover:border-cyan-500/50 p-0 rounded-xl transition-all cursor-pointer relative overflow-hidden flex">
-                                            <div className={`w-1 ${lap.lap_time < 45 ? "bg-red-500" : "bg-cyan-500"}`}></div>
-                                            <div className="p-5 flex-1 flex items-center justify-between">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center text-slate-500 group-hover:text-white group-hover:bg-slate-700 transition-colors">
-                                                        <MapPin size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-xl font-bold font-mono text-white group-hover:text-cyan-400 transition-colors">
-                                                                {formatTime(lap.lap_time)}
-                                                            </span>
-                                                            {lap.lap_time < 45 && <span className="text-[9px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded border border-red-500/20 font-bold">INVALID</span>}
-                                                        </div>
-                                                        <div className="flex items-center gap-3 text-xs text-slate-500">
-                                                            <span className="flex items-center gap-1"><Car size={12} /> {lap.car_name}</span>
-                                                            <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
-                                                            <span className="flex items-center gap-1">{lap.track_name}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-6">
-                                                    <div className="hidden md:flex flex-col gap-1 opacity-30 group-hover:opacity-100 transition-opacity">
-                                                        <div className="flex items-end gap-0.5 h-6">
-                                                            {[40, 60, 45, 80, 55, 70, 40].map((h, i) => (
-                                                                <div key={i} className="w-1 bg-slate-500 rounded-t-sm" style={{ height: `${h}%` }}></div>
-                                                            ))}
-                                                        </div>
-                                                        <span className="text-[9px] text-slate-500 text-right uppercase">Telemetry</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-3 pl-6 border-l border-slate-800">
-                                                        <button onClick={(e) => handleDelete(e, lap.id)} className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors z-20">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                        <div className="bg-slate-800 p-2 rounded-lg text-slate-400 group-hover:bg-cyan-500 group-hover:text-white transition-all"><ChevronRight size={18} /></div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                    <div className="flex items-center gap-6">
+                        <div className="relative">
+                            <input type="text" placeholder="Buscar piloto, pista ou setup..." className="pl-10 pr-4 py-2.5 bg-[#151b28] border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 w-64 transition-all" />
+                            <Users className="absolute left-3 top-2.5 text-slate-500" size={16} />
+                        </div>
+                        <button className="p-2.5 bg-[#151b28] border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors relative">
+                            <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[#151b28]" />
+                            <Cloud size={20} />
+                        </button>
+                        <div className="flex items-center gap-3 pl-6 border-l border-slate-800">
+                            <div className="text-right hidden md:block">
+                                <p className="text-sm font-bold text-white">{user?.fullName}</p>
+                                <p className="text-xs text-cyan-400 font-medium tracking-wide">DRIVER</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-700 to-slate-600 border border-slate-500/30 overflow-hidden">
+                                <img src={user?.imageUrl} alt="Profile" className="w-full h-full object-cover" />
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                {/* KPI GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                    {/* KPI 1: iRATING CARD (Mostra dados da categoria selecionada) */}
+                    <div className="col-span-1 md:col-span-2 bg-[#151b28] border border-slate-800 rounded-2xl p-6 relative overflow-hidden group hover:border-slate-700 transition-all">
+                        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                            <Trophy size={120} />
+                        </div>
+                        <div className="relative z-10 flex justify-between items-start h-full flex-col">
+                            <div className="w-full">
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">iRATING</p>
+                                        <div className="flex items-baseline gap-2">
+                                            <h2 className="text-4xl font-black text-white">{currentCareer.irating}</h2>
+                                            {currentCareer.ir_gain && (
+                                                <span className={`text-sm font-bold ${currentCareer.ir_gain.startsWith('+') ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {currentCareer.ir_gain}
+                                                </span>
+                                            )}
                                         </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                                    </div>
+                                    <div className={`w-12 h-12 ${currentCareer.color} rounded-lg flex items-center justify-center text-white font-black text-xl shadow-lg`}>
+                                        {currentCareer.license}
+                                    </div>
+                                </div>
 
-                    {/* SIDEBAR: UPSELL & STATUS */}
-                    <div className="space-y-6">
-                        {!isConnected ? (
-                            <div className="bg-gradient-to-br from-cyan-900/40 to-slate-900 p-6 rounded-2xl border border-cyan-500/20 text-center relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-3 opacity-20"><Zap size={80} /></div>
-                                <h3 className="text-lg font-bold text-white mb-2 relative z-10">Conectar iRacing</h3>
-                                <p className="text-xs text-slate-400 mb-4 relative z-10">Baixe o agente para sincronizar seus dados com segurança.</p>
-                                <button className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-bold rounded-lg transition-colors relative z-10 flex items-center justify-center gap-2">
-                                    <Download size={14} /> Baixar Agente
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="bg-green-500/10 p-4 rounded-xl border border-green-500/20 flex items-center gap-3">
-                                <div className="p-2 bg-green-500/20 rounded-lg text-green-400"><CheckCircle size={20} /></div>
-                                <div>
-                                    <p className="text-sm font-bold text-white">Agente Ativo</p>
-                                    <p className="text-xs text-green-400">Sincronização em tempo real</p>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="flex justify-between text-xs font-bold mb-2">
+                                            <span className="text-slate-400">SAFETY RATING</span>
+                                            <span className="text-white">{currentCareer.sr}</span>
+                                        </div>
+                                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${currentCareer.sr !== "---" ? (parseFloat(currentCareer.sr) > 3 ? "bg-green-500" : "bg-yellow-500") : "bg-slate-700"}`}
+                                                style={{ width: currentCareer.sr !== "---" ? `${(parseFloat(currentCareer.sr) / 4.99) * 100}%` : "0%" }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        )}
 
-                        <div className="p-4 rounded-2xl bg-[#151b28] border border-slate-800">
-                            <h3 className="text-xs font-bold uppercase text-slate-500 mb-3">Status do Sistema</h3>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs text-slate-400">
-                                    <span>Collector App</span>
-                                    <span className="text-green-400 font-bold">Online</span>
+                            <div className="w-full mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Clock size={14} /> ULTIMA CORRIDA
                                 </div>
-                                <div className="flex justify-between text-xs text-slate-400">
-                                    <span>Database</span>
-                                    <span className="text-green-400 font-bold">Connected</span>
-                                </div>
-                                <div className="flex justify-between text-xs text-slate-400">
-                                    <span>Cloud API</span>
-                                    <span className="text-yellow-500 font-bold">Connecting...</span>
-                                </div>
+                                <span className="text-xs font-bold text-white">2 horas atrás</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* KPI 2: Voltas Analisadas */}
+                    <div className="bg-[#151b28] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+                        <div>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">VOLTAS ANALISADAS</p>
+                            <h3 className="text-3xl font-black text-white mb-2">{stats.totalLaps}</h3>
+                            <div className="h-1 w-16 bg-cyan-500 rounded-full" />
+                        </div>
+                        <div className="flex justify-end opacity-20">
+                            <Activity size={48} />
+                        </div>
+                    </div>
+
+                    {/* KPI 3: Pista Favorita */}
+                    <div className="bg-[#151b28] border border-slate-800 rounded-2xl p-6 flex flex-col justify-between">
+                        <div>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">PISTA FAVORITA</p>
+                            <h3 className="text-xl font-bold text-white mb-1 line-clamp-2">{stats.bestTrack}</h3>
+                            <p className="text-xs text-green-400 font-medium">Alta consistência detectada</p>
+                        </div>
+                        <div className="flex justify-end opacity-20">
+                            <MapPin size={48} />
+                        </div>
+                    </div>
+
+                    {/* Feature Card (Locked) from original design kept for layout balance or removed? Replaced by Setup Shop */}
+                    <div className="bg-[#151b28]/50 border border-slate-800/50 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute inset-0 bg-stripe-pattern opacity-5" />
+                        <div className="absolute top-4 right-4 text-slate-700">
+                            <Lock size={16} />
+                        </div>
+                        <div>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">EQUIPE</p>
+                            <h3 className="text-xl font-bold text-slate-300 mb-1">Apex Racing</h3>
+                            <p className="text-xs text-slate-600">Feature "Team Share" em breve</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#151b28]/50 border border-slate-800/50 rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute top-4 right-4 text-slate-700">
+                            <Lock size={16} />
+                        </div>
+                        <div>
+                            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">SETUP SHOP</p>
+                            <h3 className="text-xl font-bold text-slate-300 mb-1">Locked</h3>
+                            <p className="text-xs text-slate-600">Acesso a setups Pro</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Category Toggles */}
+                <div className="flex gap-2 mb-8">
+                    <CategoryButton label="Sports Car" active={selectedCategory === "sports_car"} onClick={() => setSelectedCategory("sports_car")} icon={<Car size={16} />} />
+                    <CategoryButton label="Formula" active={selectedCategory === "formula"} onClick={() => setSelectedCategory("formula")} icon={<Zap size={16} />} />
+                    <CategoryButton label="Oval" active={selectedCategory === "oval"} onClick={() => setSelectedCategory("oval")} icon={<Activity size={16} />} />
+                    <CategoryButton label="Dirt" active={selectedCategory === "dirt_oval"} onClick={() => setSelectedCategory("dirt_oval")} icon={<Flag size={16} />} />
+                </div>
+
+                {/* SESSÕES RECENTES (TABELA) */}
+                <div className="mt-8">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Clock size={20} className="text-cyan-500" /> Sessões Recentes
+                        </h3>
+                        <button onClick={fetchLaps} className="text-xs text-slate-500 hover:text-white transition flex items-center gap-1">
+                            <Activity size={12} /> Atualizar
+                        </button>
+                    </div>
+
+                    <div className="bg-[#151b28] border border-slate-800 rounded-2xl overflow-hidden">
+                        {loading ? (
+                            <div className="p-8 text-center text-slate-500">Carregando telemetria...</div>
+                        ) : laps.length === 0 ? (
+                            <div className="p-12 text-center">
+                                <p className="text-slate-400 mb-2">Nenhuma volta gravada.</p>
+                                <p className="text-sm text-slate-600">Abra o iRacing e dê algumas voltas com o agente rodando!</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        <th className="p-4 pl-6">Pista / Carro</th>
+                                        <th className="p-4">Volta</th>
+                                        <th className="p-4">Tempo</th>
+                                        <th className="p-4">Data</th>
+                                        <th className="p-4 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm text-slate-300 divide-y divide-slate-800/50">
+                                    {laps.map((lap) => (
+                                        <tr key={lap.id} className="hover:bg-slate-800/30 transition-colors group">
+                                            <td className="p-4 pl-6">
+                                                <div className="font-bold text-white">{lap.track_name}</div>
+                                                <div className="text-xs text-slate-500">{lap.car_name}</div>
+                                            </td>
+                                            <td className="p-4 font-mono text-cyan-400 font-bold">{lap.lap_number}</td>
+                                            <td className="p-4 font-mono">{formatTime(lap.lap_time)}</td>
+                                            <td className="p-4 text-slate-500 text-xs">
+                                                {new Date(lap.created_at).toLocaleDateString()}
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Link href={`/dashboard/analysis/${lap.id}`} className="p-2 hover:bg-cyan-500/20 text-cyan-400 rounded-lg transition-colors" title="Analisar">
+                                                        <Activity size={16} />
+                                                    </Link>
+                                                    <button onClick={(e) => handleDelete(e, lap.id)} className="p-2 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors" title="Excluir">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
                 </div>
             </main>
         </div>
+    );
+}
+
+// Subcomponents for cleaner code
+function NavItem({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) {
+    return (
+        <button className={`w-full p-3 rounded-xl flex items-center justify-center xl:justify-start gap-4 transition-all duration-200 group/nav ${active ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}>
+            <div className={`${active ? 'scale-110' : 'group-hover/nav:scale-110 transition-transform'}`}>{icon}</div>
+            <span className="hidden xl:block opacity-0 group-hover:opacity-100 transition-all font-medium text-sm whitespace-nowrap lg:hidden">{label}</span>
+            {/* Tooltip for collapsed mode */}
+            <div className="absolute left-20 bg-slate-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/nav:opacity-100 pointer-events-none transition-opacity xl:hidden whitespace-nowrap z-50 border border-slate-700 shadow-xl">
+                {label}
+            </div>
+        </button>
+    );
+}
+
+function StatusItem({ label, status }: { label: string, status: "online" | "offline" | "connecting" }) {
+    const color = status === "online" ? "text-green-400" : status === "connecting" ? "text-yellow-400" : "text-slate-600";
+    const dot = status === "online" ? "bg-green-500" : status === "connecting" ? "bg-yellow-500" : "bg-slate-600";
+
+    return (
+        <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">{label}</span>
+            <span className={`font-bold ${color} flex items-center gap-1.5`}>
+                {status === "online" ? "Online" : status === "connecting" ? "Connecting..." : "Offline"}
+            </span>
+        </div>
+    );
+}
+
+function CategoryButton({ label, active, onClick, icon }: { label: string, active: boolean, onClick: () => void, icon?: React.ReactNode }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${active ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 scale-105' : 'bg-[#151b28] text-slate-500 hover:bg-slate-800 border border-slate-800 hover:border-slate-700'}`}
+        >
+            {icon} {label}
+        </button>
     );
 }
