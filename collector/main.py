@@ -329,6 +329,8 @@ def check_for_updates(current_version):
         pass
     return None, None
 
+CURRENT_VERSION = "1.0.3"
+
 def update_agent(download_url):
     try:
         response = requests.get(download_url, stream=True)
@@ -341,16 +343,21 @@ def update_agent(download_url):
         current_exe = sys.executable
         batch_script = f"""
 @echo off
-timeout /t 2 /nobreak > NUL
+:loop
+timeout /t 1 /nobreak > NUL
 del "{current_exe}"
+if exist "{current_exe}" goto loop
+
 rename "{os.path.basename(new_exe)}" "{os.path.basename(current_exe)}"
 start "" "{current_exe}"
 del "%~f0"
 """
         with open(UPDATER_SCRIPT, "w") as f:
             f.write(batch_script)
+        
+        # Launch updater and kill self immediately
         subprocess.Popen(UPDATER_SCRIPT, shell=True)
-        sys.exit(0)
+        os._exit(0) # Force kill
     except Exception as e:
         logging.error(f"Update failed: {e}")
 
