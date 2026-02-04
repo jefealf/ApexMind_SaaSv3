@@ -81,7 +81,12 @@ function LinkDeviceContent() {
                 </div>
 
                 <h1 className="text-2xl font-bold text-white mb-2">Conectar Dispositivo</h1>
-                <p className="text-slate-400 mb-8">{message}</p>
+                <p className="text-slate-400 mb-2">{message}</p>
+                {status === 'loading' && (
+                    <p className="text-slate-500 text-xs mb-8 animate-pulse">
+                        (Isso pode demorar um pouco, aguarde...)
+                    </p>
+                )}
 
                 {status === 'success' && (
                     <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 flex items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-4">
